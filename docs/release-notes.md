@@ -42,10 +42,11 @@ First portfolio-ready release of the Marketing Measurement Decision Studio.
 
 ### Reproduction evidence
 
-The documented clean setup is `python3.12 -m venv .venv`, editable installation with
-the `dev` extra, then `make release-gate`. That gate runs public observed and synthetic
-fixture tests without cloud access, executes both notebooks offline, and compares the
-reviewed artifacts with `docs/release-checksums.sha256`.
+The documented clean setup exports the current committed local `HEAD`, creates a Python
+3.12 virtual environment, installs the `dev` extra, then runs `make release-gate`.
+That gate verifies checksums before execution, runs public observed and synthetic
+fixture tests without cloud access, executes both notebooks in a temporary source copy,
+byte-compares generated evidence, and verifies checksums again afterward.
 
 ### Known limitations
 

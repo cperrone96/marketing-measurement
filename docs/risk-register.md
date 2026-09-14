@@ -13,7 +13,7 @@ This register applies to both public observed evidence and synthetic demonstrati
 | Source or result bytes drift silently | Low / High | Manifest records query/result hashes; release checksum gate runs locally and in CI | Review and version any intentional data refresh |
 | API leaks paths, identifiers, submitted values, or traces | Low / High | Typed response models, structured safe errors, aggregate-only artifact repository, contract tests | Add security review before any public production deployment |
 | Dependency ranges resolve differently over time | Medium / Medium | Python 3.12 boundary, CI gates, audited dependency set | Add a reviewed lock file before production deployment |
-| Notebook execution changes tracked evidence | Low / Medium | Smoke outputs go to ignored `.artifacts/`; checksums run after notebooks | Investigate any checksum mismatch; never overwrite evidence silently |
+| Notebook execution changes tracked evidence | Low / Medium | Checksums run before execution; notebooks run in a temporary source copy; generated evidence must byte-match; checksums run again | Investigate any mismatch; never repair or overwrite reviewed evidence silently |
 | Fixture-only CI misses cloud/source regressions | Medium / Medium | Query text, caps, hashes, and source contracts are tested offline | Run bounded manual retrieval only for an approved source refresh |
 
 No live customer data, advertising accounts, Google Analytics properties, proprietary

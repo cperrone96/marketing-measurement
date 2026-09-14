@@ -70,8 +70,8 @@ representative of a current business or campaign.
 
 - **Evidence:** Public observed, identifier-free deterministic 10% user-level sample.
   The selected logistic model scored 0.041429 PR-AUC on 7,245 untouched held-out
-  sessions versus a 0.013941 no-skill baseline. A training-only frozen threshold
-  flagged 317 sessions with 6.94% precision and 21.78% recall.
+  sessions versus a 0.013941 no-skill baseline. A training-only frozen threshold of
+  0.035589 flagged 317 sessions with 6.94% precision and 21.78% recall.
 - **Decision:** The workflow supports capacity-aware review-queue design; any real use
   requires current governed data, a new validation set, privacy review, and monitoring.
 - **Limitations:** Only 101 held-out conversions were observed; the split key is
@@ -108,22 +108,31 @@ redistributable fixtures, with DuckDB as the default test engine.
 
 ## Clean setup and verification
 
-Prerequisites: Git and Python 3.12. These commands require no cloud credentials and do
+Prerequisites: Git and Python 3.12. Until this repository is published, the exact
+runnable source is the current local Git checkout. The commands below export its
+committed `HEAD` into a new temporary directory, require no cloud credentials, and do
 not contact BigQuery after dependency installation.
 
 ```bash
-git clone <repository-url> marketing-measurement
-cd marketing-measurement
+SOURCE_CHECKOUT='/Users/christinaperrone/Documents/Claude/Projects/Data Design Dynamics/portfolio-projects/marketing-measurement'
+RELEASE_COPY="$(mktemp -d "${TMPDIR:-/tmp}/marketing-measurement-release.XXXXXX")"
+git -C "$SOURCE_CHECKOUT" archive HEAD | tar -x -C "$RELEASE_COPY"
+cd "$RELEASE_COPY"
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev]'
 make release-gate
 ```
 
-`make release-gate` runs Ruff, strict mypy over `src` and `api`, all pytest suites,
-both notebooks offline from committed redistributable local evidence, and SHA-256
-comparison of the reviewed query/result artifacts. Notebook outputs go to
-`.artifacts/notebook-smoke/`; tracked notebooks and evidence are not rewritten.
+There is intentionally no public clone URL yet. Once the owner approves publication,
+the release notes can replace the local export step with the immutable public repository
+URL and tag; no URL is invented here.
+
+`make release-gate` verifies reviewed SHA-256 values before any executable step, runs
+Ruff, strict mypy over `src` and `api`, all pytest suites, and both notebooks offline
+inside a temporary source copy. Generated evidence is byte-compared with the reviewed
+artifact, checksums are verified again afterward, and executed notebooks go to
+`.artifacts/notebook-smoke/`. The source checkout is never repaired or rewritten.
 
 To run the interfaces in two terminals:
 

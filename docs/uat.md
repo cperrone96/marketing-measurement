@@ -8,12 +8,12 @@ distinguishable without relying on color alone.
 
 | ID | Acceptance criterion | Verification | Expected result |
 | --- | --- | --- | --- |
-| UAT-01 | All public observed headline values match the reviewed artifact | `pytest -q tests/release/test_release_documentation.py` | Exact values/window and attribution warning pass |
+| UAT-01 | Every public observed headline number, label, decision, limitation, and trace link matches reviewed evidence | `pytest -q tests/release/test_release_documentation.py` | Funnel, retention, attribution, and model contracts pass |
 | UAT-02 | Public and synthetic evidence do not mix | `pytest -q tests/api tests/dashboard tests/simulation` | Evidence labels, provenance, and limitations pass |
 | UAT-03 | API schemas, errors, pagination, and money fields remain stable | `pytest -q tests/api` | Exactly ten typed v1 routes; contract tests pass |
 | UAT-04 | Dashboard reads only API contracts | `pytest -q tests/dashboard` | No repository/storage imports and all routes render |
 | UAT-05 | Core logic and SQL reconcile | `pytest -q` | All tests pass on redistributable local fixtures/artifacts |
-| UAT-06 | Notebooks execute without cloud credentials | `make notebook-smoke` | Both notebooks execute offline into `.artifacts/` |
+| UAT-06 | Notebooks execute without cloud credentials or source mutation | `make notebook-smoke` | Both execute in a temporary copy; generated evidence byte-matches reviewed evidence |
 | UAT-07 | Release evidence has not drifted | `make verify-checksums` | Every SHA-256 entry reports `OK` |
 | UAT-08 | Static quality gates pass | `make lint && make typecheck` | Ruff and strict mypy are clean |
 
