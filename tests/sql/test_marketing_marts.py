@@ -29,6 +29,7 @@ SQL_FILES = (
     PROJECT_ROOT / "sql" / "marts" / "mart_funnel.sql",
     PROJECT_ROOT / "sql" / "marts" / "mart_cohorts.sql",
     PROJECT_ROOT / "sql" / "marts" / "mart_products.sql",
+    PROJECT_ROOT / "sql" / "marts" / "mart_integration_health.sql",
 )
 PG_BIN = Path("/opt/homebrew/opt/postgresql@17/bin")
 
@@ -74,6 +75,7 @@ def db(request: pytest.FixtureRequest) -> Generator[Database, None, None]:
         database, cleanup = _postgresql_database()
     try:
         _create_raw_contract(database)
+        _create_synthetic_integration_fixture(database)
         _seed_validated_fixture(database)
         if all(path.exists() for path in SQL_FILES):
             for path in SQL_FILES[1:]:
@@ -214,6 +216,36 @@ def _create_raw_contract(database: Database) -> None:
             reason VARCHAR NOT NULL
         )
         """
+    )
+
+
+def _create_synthetic_integration_fixture(database: Database) -> None:
+    """Create a separate, deterministic synthetic namespace for integration SQL."""
+    database.sql("CREATE SCHEMA IF NOT EXISTS synthetic")
+    database.sql(
+        """
+        CREATE TABLE synthetic.integration_delivery_records (
+            synthetic_subject_key VARCHAR NOT NULL,
+            evidence_type VARCHAR NOT NULL,
+            consent_eligible BOOLEAN NOT NULL,
+            partner_matched BOOLEAN NOT NULL,
+            delivery_success BOOLEAN NOT NULL,
+            rejection_reason VARCHAR,
+            source_freshness_hours BIGINT NOT NULL,
+            delivery_latency_minutes BIGINT NOT NULL,
+            exposure BOOLEAN NOT NULL
+        )
+        """
+    )
+    placeholders = "?" if database.engine == "duckdb" else "%s"
+    database.executemany(
+        f"INSERT INTO synthetic.integration_delivery_records VALUES ({', '.join([placeholders] * 9)})",
+        [
+            ("syn_sql_001", "synthetic", True, True, True, None, 4, 10, True),
+            ("syn_sql_002", "synthetic", True, False, False, "partner_unmatched", 30, 90, False),
+            ("syn_sql_003", "synthetic", False, False, False, "consent_ineligible", 48, 30, False),
+            ("syn_sql_004", "synthetic", True, True, False, "delivery_rejected", 2, 60, False),
+        ],
     )
 
 
@@ -476,3 +508,24 @@ def test_two_item_purchase_reconciles_without_session_or_funnel_inflation(db: Da
 def test_cohort_mart_reconciles_measured_session_users(db: Database) -> None:
     cohort = db.sql("SELECT SUM(cohort_users), SUM(retained_users) FROM analytics.mart_cohorts").fetchone()
     assert cohort == (2, 2)
+
+
+def test_synthetic_integration_health_has_explicit_numerators_and_denominators(
+    db: Database,
+) -> None:
+    rows = db.sql(
+        """
+        SELECT metric, numerator, denominator, evidence_type
+        FROM synthetic.mart_integration_health
+        ORDER BY metric
+        """
+    ).fetchall()
+    assert rows == [
+        ("activation_rate", 1, 1, "synthetic"),
+        ("consent_eligibility", 3, 4, "synthetic"),
+        ("delivery_success_rate", 1, 2, "synthetic"),
+        ("freshness_sla_rate", 2, 4, "synthetic"),
+        ("latency_sla_rate", 1, 1, "synthetic"),
+        ("partner_match_rate", 2, 3, "synthetic"),
+        ("rejection_rate", 3, 4, "synthetic"),
+    ]
