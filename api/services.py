@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -136,6 +137,43 @@ class MarketingMeasurementService:
             and ".safeframe." not in row["first_event_source"]
         ]
 
+    def funnel_decision_summary(
+        self, rows: Sequence[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Aggregate the complete filtered collection before HTTP pagination."""
+        stage_fields = (
+            "views",
+            "engaged_sessions",
+            "add_to_carts",
+            "checkouts",
+            "purchases",
+        )
+        stages = {field: sum(int(row[field]) for row in rows) for field in stage_fields}
+        channels: dict[str, dict[str, int | str]] = defaultdict(
+            lambda: {
+                "channel": "",
+                "views": 0,
+                "engaged_sessions": 0,
+                "purchases": 0,
+            }
+        )
+        for row in rows:
+            channel = f"{row['channel_source']} / {row['channel_medium']}"
+            channels[channel]["channel"] = channel
+            for field in ("views", "engaged_sessions", "purchases"):
+                channels[channel][field] = int(channels[channel][field]) + int(
+                    row[field]
+                )
+        ranked_channels = sorted(
+            channels.values(),
+            key=lambda item: (-int(item["engaged_sessions"]), str(item["channel"])),
+        )[:8]
+        return {
+            "coverage": "full_filtered_window",
+            "stages": stages,
+            "channels": ranked_channels,
+        }
+
     def cohorts(self, start_date: date | None, end_date: date | None) -> list[dict[str, Any]]:
         start, end = self._validate_window(start_date, end_date)
         return [
@@ -151,6 +189,29 @@ class MarketingMeasurementService:
             for row in self._repository.cohorts
             if start <= date.fromisoformat(row["activity_date"]) <= end
         ]
+
+    def cohort_decision_summary(
+        self, rows: Sequence[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Publish complete day-7 retention evidence before HTTP pagination."""
+        items = []
+        for row in rows:
+            if int(row["days_since_acquisition"]) != 7:
+                continue
+            cohort_users = int(row["cohort_users"])
+            retained_users = int(row["retained_users"])
+            items.append(
+                {
+                    "cohort_date": str(row["cohort_date"]),
+                    "days_since_acquisition": 7,
+                    "cohort_users": cohort_users,
+                    "retained_users": retained_users,
+                    "retention_rate": (
+                        retained_users / cohort_users if cohort_users else None
+                    ),
+                }
+            )
+        return {"coverage": "complete_day_7_cohorts", "items": items}
 
     def attribution(self) -> list[dict[str, Any]]:
         attribution = self._repository.findings["attribution"]

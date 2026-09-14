@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
-
 import plotly.graph_objects as go
 from dash import html
 
@@ -18,7 +16,9 @@ from dashboard.components import (
 
 
 def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
-    if not funnel.items and not cohorts.items:
+    channel_rows = [item.model_dump() for item in funnel.decision_summary.channels]
+    cohort_rows = [item.model_dump() for item in cohorts.decision_summary.items]
+    if not channel_rows and not cohort_rows:
         return html.Div(
             [
                 decision_header(
@@ -34,53 +34,24 @@ def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
             ],
             className="page",
         )
-    channel_totals: dict[str, dict[str, int | str]] = defaultdict(
-        lambda: {"channel": "", "views": 0, "engaged": 0, "purchases": 0}
-    )
-    for item in funnel.items:
-        key = f"{item.channel_source} / {item.channel_medium}"
-        channel_totals[key]["channel"] = key
-        channel_totals[key]["views"] = int(channel_totals[key]["views"]) + item.views
-        channel_totals[key]["engaged"] = (
-            int(channel_totals[key]["engaged"]) + item.engaged_sessions
-        )
-        channel_totals[key]["purchases"] = (
-            int(channel_totals[key]["purchases"]) + item.purchases
-        )
-    rows = sorted(
-        channel_totals.values(), key=lambda row: int(row["engaged"]), reverse=True
-    )[:8]
     figure = go.Figure()
     for key, label, color in (
         ("views", "Views", "#9eb5af"),
-        ("engaged", "Engaged", "#347568"),
+        ("engaged_sessions", "Engaged", "#347568"),
         ("purchases", "Purchases", "#bb6c3f"),
     ):
         figure.add_bar(
             name=label,
-            x=[row["channel"] for row in rows],
-            y=[row[key] for row in rows],
+            x=[row["channel"] for row in channel_rows],
+            y=[row[key] for row in channel_rows],
             marker_color=color,
         )
     _style(figure, "Sessions by channel", barmode="group")
 
-    cohort_rows = [
-        {
-            "cohort_date": item.cohort_date,
-            "days": item.days_since_acquisition,
-            "cohort_users": item.cohort_users,
-            "retained_users": item.retained_users,
-            "retention": item.retained_users / item.cohort_users
-            if item.cohort_users
-            else None,
-        }
-        for item in cohorts.items
-        if item.days_since_acquisition in {0, 7}
-    ][:20]
     cohort_figure = go.Figure(
         go.Scatter(
-            x=[row["cohort_date"] for row in cohort_rows if row["days"] == 7],
-            y=[row["retention"] for row in cohort_rows if row["days"] == 7],
+            x=[row["cohort_date"] for row in cohort_rows],
+            y=[row["retention_rate"] for row in cohort_rows],
             mode="lines+markers",
             line={"color": "#5b4c91", "width": 3},
             marker={"size": 7},
@@ -98,27 +69,27 @@ def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
             evidence_strip(funnel.evidence),
             chart_record(
                 "Channel quality tally",
-                "The eight channels with the most engaged sessions, with views and purchases shown for context.",
+                "The eight channels with the most engaged sessions, computed by the API from the complete filtered window; views and purchases provide context.",
                 figure,
                 [
                     ("channel", "Channel"),
                     ("views", "Views"),
-                    ("engaged", "Engaged"),
+                    ("engaged_sessions", "Engaged"),
                     ("purchases", "Purchases"),
                 ],
-                rows,
+                channel_rows,
                 chart_id="acquisition-channels",
             ),
             chart_record(
                 "Day-7 cohort return",
-                "First-touch cohorts observed seven days after acquisition where the source window is complete.",
+                "All first-touch cohorts observed seven days after acquisition where the filtered source window is complete.",
                 cohort_figure,
                 [
                     ("cohort_date", "Cohort date"),
-                    ("days", "Days since acquisition"),
+                    ("days_since_acquisition", "Days since acquisition"),
                     ("cohort_users", "Cohort users"),
                     ("retained_users", "Retained users"),
-                    ("retention", "Retention rate"),
+                    ("retention_rate", "Retention rate"),
                 ],
                 cohort_rows,
                 chart_id="acquisition-cohorts",
@@ -130,6 +101,9 @@ def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
                     ),
                     html.P(
                         "Retention uses true first-touch cohorts and complete day-7 follow-up only."
+                    ),
+                    html.P(
+                        "The API computes channel totals and retention rates across the complete filtered window before paginating detail rows."
                     ),
                 ]
             ),
@@ -156,7 +130,7 @@ def _style(
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f5f0e6",
-        font={"color": "#152b31", "family": "Arial, sans-serif"},
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
         margin={"l": 64, "r": 24, "t": 24, "b": 90},
         height=380,
         yaxis_title=title,

@@ -16,7 +16,8 @@ from dashboard.components import (
 
 
 def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div:
-    if not funnel.items:
+    stages = funnel.decision_summary.stages
+    if stages.views == 0:
         return html.Div(
             [
                 decision_header(
@@ -31,11 +32,11 @@ def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div
             className="page",
         )
     totals = {
-        "Views": sum(row.views for row in funnel.items),
-        "Engaged": sum(row.engaged_sessions for row in funnel.items),
-        "Cart": sum(row.add_to_carts for row in funnel.items),
-        "Checkout": sum(row.checkouts for row in funnel.items),
-        "Purchase": sum(row.purchases for row in funnel.items),
+        "Views": stages.views,
+        "Engaged": stages.engaged_sessions,
+        "Cart": stages.add_to_carts,
+        "Checkout": stages.checkouts,
+        "Purchase": stages.purchases,
     }
     funnel_rows = [
         {"stage": stage, "sessions": sessions} for stage, sessions in totals.items()
@@ -80,7 +81,7 @@ def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div
             ),
             chart_record(
                 "Journey progression",
-                "Measured session counts at each observed funnel stage.",
+                "API-computed session counts across the complete filtered window at each observed funnel stage.",
                 funnel_figure,
                 [("stage", "Journey stage"), ("sessions", "Sessions")],
                 funnel_rows,
@@ -126,7 +127,7 @@ def _style(figure: go.Figure, height: int) -> None:
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f5f0e6",
-        font={"color": "#152b31", "family": "Arial, sans-serif"},
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
         margin={"l": 64, "r": 30, "t": 18, "b": 60},
         height=height,
         showlegend=False,

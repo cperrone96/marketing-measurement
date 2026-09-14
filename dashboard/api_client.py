@@ -32,12 +32,19 @@ class DashboardAPIClient:
     """Fetch and validate only public API response contracts."""
 
     def __init__(
-        self, base_url: str | None = None, timeout_seconds: float = 5.0
+        self,
+        base_url: str | None = None,
+        timeout_seconds: float = 5.0,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
-        self.base_url = (
-            base_url or os.getenv("MARKETING_API_URL", "http://127.0.0.1:8000")
-        ).rstrip("/")
+        resolved_base_url = (
+            base_url
+            if base_url is not None
+            else os.getenv("MARKETING_API_URL", "http://127.0.0.1:8000")
+        )
+        self.base_url = resolved_base_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
+        self._transport = transport
 
     def _get(self, path: str, model: type[ResponseT]) -> ResponseT:
         return self._request("GET", path, model)
@@ -51,12 +58,12 @@ class DashboardAPIClient:
         payload: dict[str, object] | None = None,
     ) -> ResponseT:
         try:
-            response = httpx.request(
-                method,
-                f"{self.base_url}{path}",
-                json=payload,
+            with httpx.Client(
+                base_url=self.base_url,
                 timeout=self.timeout_seconds,
-            )
+                transport=self._transport,
+            ) as client:
+                response = client.request(method, path, json=payload)
             response.raise_for_status()
             return model.model_validate(response.json())
         except (httpx.HTTPError, ValueError) as error:
@@ -71,10 +78,10 @@ class DashboardAPIClient:
         return self._get("/api/v1/kpis", KpisResponse)
 
     def funnel(self) -> FunnelResponse:
-        return self._get("/api/v1/funnel?page_size=100", FunnelResponse)
+        return self._get("/api/v1/funnel?page_size=1", FunnelResponse)
 
     def cohorts(self) -> CohortsResponse:
-        return self._get("/api/v1/cohorts?page_size=100", CohortsResponse)
+        return self._get("/api/v1/cohorts?page_size=1", CohortsResponse)
 
     def attribution(self) -> AttributionResponse:
         return self._get("/api/v1/attribution", AttributionResponse)

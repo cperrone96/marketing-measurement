@@ -77,8 +77,30 @@ class FunnelItem(APIModel):
     purchases: int = Field(ge=0)
 
 
+class FunnelStageSummary(APIModel):
+    views: int = Field(ge=0)
+    engaged_sessions: int = Field(ge=0)
+    add_to_carts: int = Field(ge=0)
+    checkouts: int = Field(ge=0)
+    purchases: int = Field(ge=0)
+
+
+class ChannelQualitySummary(APIModel):
+    channel: str
+    views: int = Field(ge=0)
+    engaged_sessions: int = Field(ge=0)
+    purchases: int = Field(ge=0)
+
+
+class FunnelDecisionSummary(APIModel):
+    coverage: Literal["full_filtered_window"]
+    stages: FunnelStageSummary
+    channels: list[ChannelQualitySummary]
+
+
 class FunnelResponse(Pagination):
     items: list[FunnelItem]
+    decision_summary: FunnelDecisionSummary
     evidence: Evidence
 
 
@@ -92,8 +114,22 @@ class CohortItem(APIModel):
     cohort_definition: str
 
 
+class CohortRetentionSummaryItem(APIModel):
+    cohort_date: str
+    days_since_acquisition: Literal[7]
+    cohort_users: int = Field(ge=0)
+    retained_users: int = Field(ge=0)
+    retention_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class CohortDecisionSummary(APIModel):
+    coverage: Literal["complete_day_7_cohorts"]
+    items: list[CohortRetentionSummaryItem]
+
+
 class CohortsResponse(Pagination):
     items: list[CohortItem]
+    decision_summary: CohortDecisionSummary
     evidence: Evidence
 
 

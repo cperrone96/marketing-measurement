@@ -112,6 +112,41 @@ def test_funnel_accepts_bounded_dates_and_paginates_first_last_empty_and_oversiz
     assert oversized.status_code == 422
 
 
+def test_funnel_decision_summary_covers_full_window_on_every_page(
+    client: APIClient,
+) -> None:
+    first = client.get("/api/v1/funnel", params={"page": 1, "page_size": 1})
+    second = client.get("/api/v1/funnel", params={"page": 2, "page_size": 1})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["total"] > len(first.json()["items"])
+    assert first.json()["decision_summary"] == second.json()["decision_summary"]
+    assert first.json()["decision_summary"]["coverage"] == "full_filtered_window"
+    assert first.json()["decision_summary"]["stages"] == {
+        "views": 333_534,
+        "engaged_sessions": 250_128,
+        "add_to_carts": 14_913,
+        "checkouts": 5_956,
+        "purchases": 2_847,
+    }
+    assert first.json()["decision_summary"]["channels"]
+
+
+def test_cohort_decision_summary_covers_all_complete_day_7_cohorts_on_every_page(
+    client: APIClient,
+) -> None:
+    first = client.get("/api/v1/cohorts", params={"page": 1, "page_size": 1})
+    second = client.get("/api/v1/cohorts", params={"page": 2, "page_size": 1})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["total"] > len(first.json()["items"])
+    assert first.json()["decision_summary"] == second.json()["decision_summary"]
+    summary = first.json()["decision_summary"]
+    assert summary["coverage"] == "complete_day_7_cohorts"
+    assert len(summary["items"]) == 85
+    assert all(item["days_since_acquisition"] == 7 for item in summary["items"])
+
+
 @pytest.mark.parametrize(
     "path",
     [

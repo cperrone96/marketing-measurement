@@ -59,9 +59,11 @@ def funnel(
     page: Page = 1,
     page_size: PageSize = 50,
 ) -> dict[str, object]:
-    items, total = paginate(_service.funnel(start_date, end_date), page, page_size)
+    full_window_items = _service.funnel(start_date, end_date)
+    items, total = paginate(full_window_items, page, page_size)
     return {
         "items": items,
+        "decision_summary": _service.funnel_decision_summary(full_window_items),
         "page": page,
         "page_size": page_size,
         "total": total,
@@ -79,9 +81,11 @@ def cohorts(
     page: Page = 1,
     page_size: PageSize = 50,
 ) -> dict[str, object]:
-    items, total = paginate(_service.cohorts(start_date, end_date), page, page_size)
+    full_window_items = _service.cohorts(start_date, end_date)
+    items, total = paginate(full_window_items, page, page_size)
     return {
         "items": items,
+        "decision_summary": _service.cohort_decision_summary(full_window_items),
         "page": page,
         "page_size": page_size,
         "total": total,

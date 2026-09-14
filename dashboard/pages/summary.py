@@ -9,6 +9,7 @@ from api.schemas import KpisResponse, SourcesResponse
 from dashboard.components import (
     chart_record,
     decision_header,
+    empty_state,
     error_state,
     evidence_strip,
     methodology,
@@ -17,11 +18,30 @@ from dashboard.components import (
 
 def layout(kpis: KpisResponse, sources: SourcesResponse) -> html.Div:
     by_name = {item.name: item.values for item in kpis.items}
-    funnel = by_name.get("funnel", {})
+    funnel = by_name.get("funnel")
+    if not funnel:
+        return html.Div(
+            [
+                decision_header(
+                    "Measurement decision room",
+                    "No decision can be called.",
+                    "Retry after reviewed KPI evidence is published.",
+                ),
+                empty_state("No reviewed KPI rows are available for this view."),
+                methodology(
+                    [
+                        html.P(sources.boundary),
+                        html.P("Attribution is descriptive, not causal."),
+                    ]
+                ),
+                _empty_table(),
+            ],
+            className="page page--summary",
+        )
     stages = [
-        ("Views", int(funnel.get("views", 0))),
-        ("Engaged", int(funnel.get("engaged_sessions", 0))),
-        ("Purchases", int(funnel.get("purchases", 0))),
+        ("Views", int(funnel["views"])),
+        ("Engaged", int(funnel["engaged_sessions"])),
+        ("Purchases", int(funnel["purchases"])),
     ]
     figure = go.Figure(
         go.Bar(
@@ -39,7 +59,7 @@ def layout(kpis: KpisResponse, sources: SourcesResponse) -> html.Div:
     source_by_kind = {
         item.evidence.evidence_type: item.evidence for item in sources.items
     }
-    strips = [evidence_strip(source_by_kind["public_observed"])]
+    strips = [evidence_strip(source_by_kind.get("public_observed", kpis.evidence))]
     if "synthetic" in source_by_kind:
         strips.append(evidence_strip(source_by_kind["synthetic"]))
     rows = [{"stage": name, "sessions": value} for name, value in stages]
@@ -80,6 +100,16 @@ def layout(kpis: KpisResponse, sources: SourcesResponse) -> html.Div:
                 [
                     html.H2("Evidence lanes"),
                     html.Div(strips, className="evidence-lanes"),
+                    *(
+                        [
+                            html.P(
+                                "Source register is empty; KPI response provenance is shown.",
+                                className="causal-warning",
+                            )
+                        ]
+                        if not sources.items
+                        else []
+                    ),
                 ]
             ),
             html.P(
@@ -115,7 +145,7 @@ def _style_figure(figure: go.Figure, x_title: str) -> None:
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f5f0e6",
-        font={"color": "#152b31", "family": "Arial, sans-serif"},
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
         margin={"l": 90, "r": 80, "t": 16, "b": 54},
         height=290,
         xaxis_title=x_title,
@@ -123,3 +153,12 @@ def _style_figure(figure: go.Figure, x_title: str) -> None:
         showlegend=False,
     )
     figure.update_xaxes(gridcolor="#c9c1b1", zeroline=False)
+
+
+def _empty_table() -> html.Details:
+    return html.Details(
+        [
+            html.Summary("View evidence table"),
+            html.P("No reviewed KPI rows are available."),
+        ]
+    )

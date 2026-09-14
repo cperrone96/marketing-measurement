@@ -54,7 +54,7 @@ def layout(
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f5f0e6",
-        font={"color": "#152b31", "family": "Arial, sans-serif"},
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
         margin={"l": 210, "r": 70, "t": 18, "b": 54},
         height=390,
         xaxis={"range": [0, 1.05], "tickformat": ".0%", "gridcolor": "#c9c1b1"},

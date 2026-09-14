@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from dash import Dash
+import httpx
+import pytest
+from dash import Dash, dcc
 
 from api.schemas import (
     AttributionResponse,
     AudienceQualityResponse,
+    BudgetScenarioResponse,
     CohortsResponse,
     Evidence,
     FunnelResponse,
@@ -17,7 +20,7 @@ from api.schemas import (
     SourceItem,
     SourcesResponse,
 )
-from dashboard.api_client import DashboardAPIClient
+from dashboard.api_client import DashboardAPIClient, DashboardAPIError
 from dashboard.app import create_app, nav_classes
 from dashboard.pages import (
     acquisition,
@@ -31,6 +34,21 @@ from dashboard.pages import (
 def _text(component: Any) -> str:
     """Serialize a real Dash component tree and expose its rendered copy."""
     return json.dumps(component.to_plotly_json(), default=str)
+
+
+def _graph(component: Any, graph_id: str) -> dcc.Graph:
+    if isinstance(component, dcc.Graph) and component.id == graph_id:
+        return component
+    children = getattr(component, "children", None)
+    candidates = children if isinstance(children, list) else [children]
+    for child in candidates:
+        if child is None:
+            continue
+        try:
+            return _graph(child, graph_id)
+        except LookupError:
+            pass
+    raise LookupError(graph_id)
 
 
 def _evidence(kind: str = "public_observed") -> Evidence:
@@ -52,6 +70,24 @@ def _funnel() -> FunnelResponse:
         page_size=50,
         total=1,
         evidence=_evidence(),
+        decision_summary={
+            "coverage": "full_filtered_window",
+            "stages": {
+                "views": 100,
+                "engaged_sessions": 75,
+                "add_to_carts": 18,
+                "checkouts": 10,
+                "purchases": 5,
+            },
+            "channels": [
+                {
+                    "channel": "google / organic",
+                    "views": 100,
+                    "engaged_sessions": 75,
+                    "purchases": 5,
+                }
+            ],
+        },
         items=[
             {
                 "date": "2020-11-01",
@@ -74,6 +110,18 @@ def _cohorts() -> CohortsResponse:
         page_size=50,
         total=1,
         evidence=_evidence(),
+        decision_summary={
+            "coverage": "complete_day_7_cohorts",
+            "items": [
+                {
+                    "cohort_date": "2020-11-01",
+                    "days_since_acquisition": 7,
+                    "cohort_users": 1000,
+                    "retained_users": 20,
+                    "retention_rate": 0.02,
+                }
+            ],
+        },
         items=[
             {
                 "cohort_date": "2020-11-01",
@@ -197,8 +245,35 @@ def test_decision_pages_expose_chart_alternatives_and_methodology() -> None:
 
 def test_empty_and_error_states_are_explicit_and_actionable() -> None:
     empty = acquisition.layout(
-        FunnelResponse(page=1, page_size=50, total=0, items=[], evidence=_evidence()),
-        CohortsResponse(page=1, page_size=50, total=0, items=[], evidence=_evidence()),
+        FunnelResponse(
+            page=1,
+            page_size=50,
+            total=0,
+            items=[],
+            decision_summary={
+                "coverage": "full_filtered_window",
+                "stages": {
+                    "views": 0,
+                    "engaged_sessions": 0,
+                    "add_to_carts": 0,
+                    "checkouts": 0,
+                    "purchases": 0,
+                },
+                "channels": [],
+            },
+            evidence=_evidence(),
+        ),
+        CohortsResponse(
+            page=1,
+            page_size=50,
+            total=0,
+            items=[],
+            decision_summary={
+                "coverage": "complete_day_7_cohorts",
+                "items": [],
+            },
+            evidence=_evidence(),
+        ),
     )
     assert "No evidence matches this view" in _text(empty)
     assert "Reset the date range" in _text(empty)
@@ -206,6 +281,156 @@ def test_empty_and_error_states_are_explicit_and_actionable() -> None:
     error = summary.error_layout("The analytics API could not be reached.")
     assert "Evidence temporarily unavailable" in _text(error)
     assert "Retry" in _text(error)
+
+
+def test_summary_treats_valid_empty_kpis_and_sources_as_an_empty_state() -> None:
+    page = summary.layout(
+        KpisResponse(page=1, page_size=100, total=0, items=[], evidence=_evidence()),
+        SourcesResponse(
+            page=1,
+            page_size=100,
+            total=0,
+            boundary="Evidence types are intentionally separate.",
+            items=[],
+        ),
+    )
+
+    text = _text(page)
+    assert "No evidence matches this view" in text
+    assert "Observed journey tally" not in text
+
+
+def test_summary_handles_missing_source_register_without_key_error() -> None:
+    page = summary.layout(
+        KpisResponse(
+            page=1,
+            page_size=100,
+            total=1,
+            evidence=_evidence(),
+            items=[
+                {
+                    "name": "funnel",
+                    "values": {
+                        "views": 100,
+                        "engaged_sessions": 75,
+                        "purchases": 5,
+                    },
+                }
+            ],
+        ),
+        SourcesResponse(
+            page=1,
+            page_size=100,
+            total=0,
+            boundary="Evidence types are intentionally separate.",
+            items=[],
+        ),
+    )
+
+    text = _text(page)
+    assert "Public GA4 evidence" in text
+    assert "Source register is empty" in text
+
+
+def test_scenario_result_renders_sensitivity_chart_and_text_alternative() -> None:
+    result = BudgetScenarioResponse(
+        allocations={"channel_aurora": "70.00", "channel_birch": "30.00"},
+        total_budget="100.00",
+        estimated_incremental_value="117.00",
+        assumptions=["Synthetic planning assumption."],
+        sensitivity=[
+            {
+                "scenario": "channel_aurora_down_20pct",
+                "varied_channel": "channel_aurora",
+                "value_multiplier": 0.8,
+                "estimated_incremental_value": "97.40",
+                "ranking_changed_from_baseline": True,
+                "allocation_changed_from_baseline": True,
+                "decision_summary": "The preferred allocation changes under this stress test.",
+            }
+        ],
+        robustness_summary="One tested assumption changes the preferred allocation.",
+        evidence=_evidence("synthetic"),
+    )
+
+    text = _text(scenarios.result_layout(result))
+    assert "Sensitivity decision evidence" in text
+    assert "Channel Aurora Down 20Pct" in text
+    assert "The preferred allocation changes under this stress test." in text
+    assert text.count("View evidence table") == 2
+
+
+def test_production_client_validates_full_sample_decision_contract() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/funnel"
+        assert request.url.params["page_size"] == "1"
+        return httpx.Response(
+            200,
+            json={
+                "page": 1,
+                "page_size": 1,
+                "total": 2351,
+                "items": [],
+                "decision_summary": {
+                    "coverage": "full_filtered_window",
+                    "stages": {
+                        "views": 333534,
+                        "engaged_sessions": 250128,
+                        "add_to_carts": 14913,
+                        "checkouts": 5956,
+                        "purchases": 2847,
+                    },
+                    "channels": [],
+                },
+                "evidence": _evidence().model_dump(mode="json"),
+            },
+        )
+
+    api = DashboardAPIClient(
+        base_url="https://api.example.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = api.funnel()
+    assert response.decision_summary.stages.views == 333_534
+    assert response.items == []
+    attribution = AttributionResponse(
+        page=1,
+        page_size=100,
+        total=0,
+        items=[],
+        evidence=_evidence(),
+    )
+    page = journeys.layout(response, attribution)
+    graph = _graph(page, "journey-funnel")
+    assert list(graph.figure.data[0].x) == [
+        333_534,
+        250_128,
+        14_913,
+        5_956,
+        2_847,
+    ]
+
+
+def test_production_client_rejects_missing_decision_summary() -> None:
+    api = DashboardAPIClient(
+        base_url="https://api.example.test",
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "page": 1,
+                    "page_size": 1,
+                    "total": 1,
+                    "items": [],
+                    "evidence": _evidence().model_dump(mode="json"),
+                },
+            )
+        ),
+    )
+
+    with pytest.raises(DashboardAPIError):
+        api.funnel()
 
 
 def test_app_registers_five_keyboard_navigable_decision_routes() -> None:

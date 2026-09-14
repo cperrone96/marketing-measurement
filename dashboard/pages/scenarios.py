@@ -93,13 +93,47 @@ def result_layout(result: BudgetScenarioResponse) -> html.Div:
     figure.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f5f0e6",
-        font={"color": "#152b31", "family": "Arial, sans-serif"},
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
         margin={"l": 70, "r": 30, "t": 18, "b": 70},
         height=330,
         yaxis_title="Synthetic allocation",
         showlegend=False,
     )
     figure.update_yaxes(gridcolor="#c9c1b1", tickprefix="$", zeroline=False)
+    sensitivity_rows = [
+        {
+            "scenario": item.scenario.replace("_", " ").title(),
+            "varied_channel": item.varied_channel.replace("_", " ").title(),
+            "value_multiplier": item.value_multiplier,
+            "estimated_incremental_value": item.estimated_incremental_value,
+            "ranking_changed": "Yes" if item.ranking_changed_from_baseline else "No",
+            "allocation_changed": (
+                "Yes" if item.allocation_changed_from_baseline else "No"
+            ),
+            "decision_summary": item.decision_summary,
+        }
+        for item in result.sensitivity
+    ]
+    sensitivity_figure = go.Figure(
+        go.Bar(
+            x=[row["scenario"] for row in sensitivity_rows],
+            y=[float(row["estimated_incremental_value"]) for row in sensitivity_rows],
+            marker_color="#8d77c2",
+        )
+    )
+    sensitivity_figure.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#f5f0e6",
+        font={"color": "#152b31", "family": "IBM Plex Mono, Menlo, monospace"},
+        margin={"l": 70, "r": 30, "t": 18, "b": 100},
+        height=360,
+        yaxis_title="Estimated synthetic value",
+        showlegend=False,
+    )
+    sensitivity_figure.update_xaxes(gridcolor="#c9c1b1", tickangle=-20)
+    sensitivity_figure.update_yaxes(
+        gridcolor="#c9c1b1", tickprefix="$", zeroline=False
+    )
     return html.Div(
         [
             evidence_strip(result.evidence),
@@ -113,6 +147,22 @@ def result_layout(result: BudgetScenarioResponse) -> html.Div:
             ),
             html.P(
                 f"Estimated incremental value: ${result.estimated_incremental_value}"
+            ),
+            chart_record(
+                "Sensitivity decision evidence",
+                result.robustness_summary,
+                sensitivity_figure,
+                [
+                    ("scenario", "Stress-test scenario"),
+                    ("varied_channel", "Varied channel"),
+                    ("value_multiplier", "Value multiplier"),
+                    ("estimated_incremental_value", "Estimated incremental value"),
+                    ("ranking_changed", "Ranking changed"),
+                    ("allocation_changed", "Allocation changed"),
+                    ("decision_summary", "Decision summary"),
+                ],
+                sensitivity_rows,
+                chart_id="scenario-sensitivity",
             ),
             html.Ul([html.Li(item) for item in result.assumptions]),
         ]
