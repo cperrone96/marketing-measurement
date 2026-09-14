@@ -1,0 +1,31 @@
+{
+  "manifest_date": "2026-09-11",
+  "source": {
+    "dataset": "bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*",
+    "coverage_start": "2020-11-01",
+    "coverage_end": "2021-01-31",
+    "retrieval": {
+      "status": "not_retrieved",
+      "reason": "This task builds a local JSON/NDJSON ingestion boundary and does not download BigQuery data or require Google credentials."
+    },
+    "export_query_provenance": "SELECT * FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*` WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20210131'"
+  },
+  "checksums": {
+    "source_public_data_snapshot": {
+      "algorithm": "sha256",
+      "value": null,
+      "status": "not_available",
+      "scope": "No public BigQuery data snapshot or extract was retrieved for this task."
+    },
+    "synthetic_test_fixture": {
+      "algorithm": "sha256",
+      "value": "54c5903eb360cf460f1f8548389207cb7d671174dfce985c5f1842766d41907a",
+      "path": "data/fixtures/ga4_schema_fixture.ndjson",
+      "scope": "Small deterministic synthetic schema test fixture only; not observed Google data and not a public-data snapshot."
+    }
+  },
+  "limitations": [
+    "The fixture validates schema handling only and must not be used to infer public-source distributions or outcomes.",
+    "A future authorized retrieval must record the actual export checksum separately from this fixture checksum."
+  ]
+}

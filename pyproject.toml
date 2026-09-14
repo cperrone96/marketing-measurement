@@ -9,12 +9,14 @@ description = "Marketing Measurement and Audience Integration portfolio project"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "pandas>=2.2,<3",
     "pydantic-settings>=2.6,<3",
 ]
 
 [project.optional-dependencies]
 dev = [
     "mypy>=1.13,<2",
+    "pandas-stubs>=2.2,<3",
     "pytest>=8.3,<9",
     "ruff>=0.7,<1",
 ]
