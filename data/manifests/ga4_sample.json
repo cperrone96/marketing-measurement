@@ -5,17 +5,34 @@
     "coverage_start": "2020-11-01",
     "coverage_end": "2021-01-31",
     "retrieval": {
-      "status": "not_retrieved",
-      "reason": "This task builds a local JSON/NDJSON ingestion boundary and does not download BigQuery data or require Google credentials."
+      "status": "retrieved_aggregate_only",
+      "retrieved_at_utc": "2026-09-11T13:49:05.887878+00:00",
+      "project_id": "christina-data-portfolio-2026",
+      "maximum_bytes_billed_per_query": 4000000000,
+      "metadata_path": "data/observed/ga4_public_sample/retrieval_metadata.json",
+      "scope": "Three compact aggregate-only public-data results; no raw event-level records were downloaded or committed."
     },
-    "export_query_provenance": "SELECT * FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*` WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20210131'"
+    "query_provenance": [
+      "sql/bigquery/funnel_daily_by_channel.sql",
+      "sql/bigquery/cohort_retention.sql",
+      "sql/bigquery/conversion_channel_paths.sql"
+    ]
   },
   "checksums": {
     "source_public_data_snapshot": {
       "algorithm": "sha256",
-      "value": null,
-      "status": "not_available",
-      "scope": "No public BigQuery data snapshot or extract was retrieved for this task."
+      "value": "3571a04ebff804811e167902ae5f9ae5448d2f0940d413e021408ad25dcd268c",
+      "path": "data/observed/ga4_public_sample/retrieval_metadata.json",
+      "status": "aggregate_only",
+      "scope": "Observed Google public-sample retrieval metadata and checksums for aggregate-only outputs; not a raw event snapshot."
+    },
+    "observed_aggregate_outputs": {
+      "algorithm": "sha256",
+      "files": {
+        "data/observed/ga4_public_sample/funnel_daily_by_channel.json": "7cc4c9ce325f6314bef383cd8497989026c7d1b6aa73d4166362f7c6b1e25389",
+        "data/observed/ga4_public_sample/cohort_retention.json": "a34d296c00666f3c3febabe7672819c94b29af625e38bbed099bff2e98930a1f",
+        "data/observed/ga4_public_sample/conversion_channel_paths.json": "30b5744713a04d3864857088b71002c100ccb1aad2ccdced42b10ceac352a359"
+      }
     },
     "synthetic_test_fixture": {
       "algorithm": "sha256",
@@ -26,6 +43,7 @@
   },
   "limitations": [
     "The fixture validates schema handling only and must not be used to infer public-source distributions or outcomes.",
-    "A future authorized retrieval must record the actual export checksum separately from this fixture checksum."
+    "Observed findings are computed only from the compact public aggregate outputs, never from the synthetic fixture.",
+    "The public sample is obfuscated; aggregate paths omit user, session, transaction, and hashed identifiers."
   ]
 }

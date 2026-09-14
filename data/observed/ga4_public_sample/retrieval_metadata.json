@@ -1,0 +1,82 @@
+{
+  "maximum_bytes_billed": 4000000000,
+  "project_id": "christina-data-portfolio-2026",
+  "queries": {
+    "cohort_retention": {
+      "dry_run": {
+        "bytes_billed": "0",
+        "bytes_processed": "982194818",
+        "referenced_tables": [
+          {
+            "datasetId": "ga4_obfuscated_sample_ecommerce",
+            "projectId": "bigquery-public-data",
+            "tableId": "events_*"
+          }
+        ],
+        "statement_type": "SELECT"
+      },
+      "job": {
+        "bytes_billed": "982515712",
+        "bytes_processed": "982194818",
+        "cache_hit": false,
+        "job_id": "marketing_measurement_cohort_retention_20260911134918",
+        "location": "US"
+      },
+      "result_path": "data/observed/ga4_public_sample/cohort_retention.json",
+      "result_sha256": "a34d296c00666f3c3febabe7672819c94b29af625e38bbed099bff2e98930a1f",
+      "sql_path": "sql/bigquery/cohort_retention.sql",
+      "sql_sha256": "19653649f1a7f77306b8cb1fd5f9808b7535bb44dd9d69d9f79f97c3627d9448"
+    },
+    "conversion_channel_paths": {
+      "dry_run": {
+        "bytes_billed": "0",
+        "bytes_processed": "1118585192",
+        "referenced_tables": [
+          {
+            "datasetId": "ga4_obfuscated_sample_ecommerce",
+            "projectId": "bigquery-public-data",
+            "tableId": "events_*"
+          }
+        ],
+        "statement_type": "SELECT"
+      },
+      "job": {
+        "bytes_billed": "1118830592",
+        "bytes_processed": "1118585192",
+        "cache_hit": false,
+        "job_id": "marketing_measurement_conversion_channel_paths_20260911134932",
+        "location": "US"
+      },
+      "result_path": "data/observed/ga4_public_sample/conversion_channel_paths.json",
+      "result_sha256": "30b5744713a04d3864857088b71002c100ccb1aad2ccdced42b10ceac352a359",
+      "sql_path": "sql/bigquery/conversion_channel_paths.sql",
+      "sql_sha256": "4fd38c53349e19e39a8a6077479e2076a7a498ce7810f029c98e815fb2403898"
+    },
+    "funnel_daily_by_channel": {
+      "dry_run": {
+        "bytes_billed": "0",
+        "bytes_processed": "1127176360",
+        "referenced_tables": [
+          {
+            "datasetId": "ga4_obfuscated_sample_ecommerce",
+            "projectId": "bigquery-public-data",
+            "tableId": "events_*"
+          }
+        ],
+        "statement_type": "SELECT"
+      },
+      "job": {
+        "bytes_billed": "1127219200",
+        "bytes_processed": "1127176360",
+        "cache_hit": false,
+        "job_id": "marketing_measurement_funnel_daily_by_channel_20260911134909",
+        "location": "US"
+      },
+      "result_path": "data/observed/ga4_public_sample/funnel_daily_by_channel.json",
+      "result_sha256": "7cc4c9ce325f6314bef383cd8497989026c7d1b6aa73d4166362f7c6b1e25389",
+      "sql_path": "sql/bigquery/funnel_daily_by_channel.sql",
+      "sql_sha256": "343c4988f4dfefe07c09a001ea836fe0cf3593c60345014ae1a34d3fd19151ea"
+    }
+  },
+  "retrieved_at_utc": "2026-09-11T13:49:05.887878+00:00"
+}

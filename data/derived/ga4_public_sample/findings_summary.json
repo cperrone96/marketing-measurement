@@ -1,0 +1,71 @@
+{
+  "attribution": {
+    "converted_sessions": 4848,
+    "interpretation": "descriptive attribution; not causal",
+    "top_channel_credits": {
+      "first_touch": {
+        "(data deleted) / (data deleted)": 273.0,
+        "(direct) / (none)": 1104.0,
+        "<Other> / <Other>": 707.0,
+        "<Other> / organic": 146.0,
+        "<Other> / referral": 446.0,
+        "google / cpc": 228.0,
+        "google / organic": 1555.0,
+        "shop.googlemerchandisestore.com / referral": 384.0
+      },
+      "last_touch": {
+        "(data deleted) / (data deleted)": 698.0,
+        "(direct) / (none)": 1079.0,
+        "<Other> / <Other>": 506.0,
+        "<Other> / organic": 97.0,
+        "<Other> / referral": 471.0,
+        "google / cpc": 153.0,
+        "google / organic": 1250.0,
+        "shop.googlemerchandisestore.com / referral": 585.0
+      },
+      "linear": {
+        "(data deleted) / (data deleted)": 545.524856,
+        "(direct) / (none)": 1084.584776,
+        "<Other> / <Other>": 576.883369,
+        "<Other> / organic": 115.667569,
+        "<Other> / referral": 465.318254,
+        "google / cpc": 179.844553,
+        "google / organic": 1353.552237,
+        "shop.googlemerchandisestore.com / referral": 517.292641
+      },
+      "time_decay": {
+        "(data deleted) / (data deleted)": 617.129613,
+        "(direct) / (none)": 1081.211172,
+        "<Other> / <Other>": 542.755539,
+        "<Other> / organic": 106.931286,
+        "<Other> / referral": 468.562746,
+        "google / cpc": 166.94712,
+        "google / organic": 1308.140485,
+        "shop.googlemerchandisestore.com / referral": 546.520975
+      }
+    }
+  },
+  "day_7_retention": {
+    "cohort_users": 250712,
+    "eligible_cohorts": 85,
+    "rate": 0.007842,
+    "retained_users": 1966
+  },
+  "funnel": {
+    "add_to_cart_rate": 0.059675,
+    "add_to_carts": 14953,
+    "checkout_rate": 0.397579,
+    "checkouts": 5945,
+    "engaged_sessions": 250575,
+    "engagement_rate": 0.749592,
+    "purchase_rate": 0.476703,
+    "purchases": 2834,
+    "views": 334282
+  },
+  "source": {
+    "coverage_end": "2021-01-31",
+    "coverage_start": "2020-11-01",
+    "dataset": "bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*",
+    "retrieved_at_utc": "2026-09-11T13:49:05.887878+00:00"
+  }
+}
