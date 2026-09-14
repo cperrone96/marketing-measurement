@@ -1,5 +1,6 @@
--- Grain: one user_pseudo_id + ga_session_id pair.  A null ga_session_id remains
--- null (unmeasured), rather than being replaced with a synthetic session value.
+-- Grain: one measured user_pseudo_id + non-null ga_session_id pair.  Events with
+-- a null ga_session_id remain available in staging as unmeasured and are excluded
+-- here, so a user + null group can never masquerade as a measured session.
 CREATE OR REPLACE VIEW analytics.mart_sessions AS
 WITH event_level_records AS (
     -- Collapse an event-item spine back to one event before session metrics so a
@@ -25,7 +26,8 @@ WITH event_level_records AS (
         ) AS event_rank
     FROM event_level_records
     WHERE event_item_rank = 1
-), session_rollup AS (
+        AND ga_session_id IS NOT NULL
+), raw_session_rollup AS (
     SELECT
         user_pseudo_id,
         ga_session_id,
@@ -41,20 +43,51 @@ WITH event_level_records AS (
             AS privacy_info_analytics_storage,
         COUNT(*) AS event_count,
         SUM(CASE WHEN event_name = 'page_view' THEN 1 ELSE 0 END) AS page_views,
-        MAX(CASE WHEN event_name = 'page_view' THEN 1 ELSE 0 END) AS has_page_view,
+        MAX(CASE WHEN event_name = 'page_view' THEN 1 ELSE 0 END) AS raw_has_page_view,
         MAX(
             CASE
                 WHEN event_name = 'user_engagement' OR engagement_time_msec > 0 THEN 1
                 ELSE 0
             END
-        ) AS is_engaged,
+        ) AS raw_is_engaged,
         SUM(CASE WHEN event_name = 'add_to_cart' THEN 1 ELSE 0 END) AS add_to_cart_events,
-        MAX(CASE WHEN event_name = 'add_to_cart' THEN 1 ELSE 0 END) AS has_add_to_cart,
+        MAX(CASE WHEN event_name = 'add_to_cart' THEN 1 ELSE 0 END)
+            AS raw_has_add_to_cart,
+        SUM(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END) AS checkout_events,
+        MAX(CASE WHEN event_name = 'begin_checkout' THEN 1 ELSE 0 END)
+            AS raw_has_begin_checkout,
         SUM(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS purchase_events,
-        MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS has_purchase,
+        MAX(CASE WHEN event_name = 'purchase' THEN 1 ELSE 0 END) AS raw_has_purchase,
         SUM(purchase_revenue) AS revenue
     FROM ordered_events
     GROUP BY user_pseudo_id, ga_session_id
 )
-SELECT *
-FROM session_rollup;
+SELECT
+    raw_session_rollup.*,
+    raw_has_page_view AS has_page_view,
+    CASE
+        WHEN raw_has_page_view = 1 AND raw_is_engaged = 1 THEN 1
+        ELSE 0
+    END AS is_engaged,
+    CASE
+        WHEN raw_has_page_view = 1
+            AND raw_is_engaged = 1
+            AND raw_has_add_to_cart = 1 THEN 1
+        ELSE 0
+    END AS has_add_to_cart,
+    CASE
+        WHEN raw_has_page_view = 1
+            AND raw_is_engaged = 1
+            AND raw_has_add_to_cart = 1
+            AND raw_has_begin_checkout = 1 THEN 1
+        ELSE 0
+    END AS has_begin_checkout,
+    CASE
+        WHEN raw_has_page_view = 1
+            AND raw_is_engaged = 1
+            AND raw_has_add_to_cart = 1
+            AND raw_has_begin_checkout = 1
+            AND raw_has_purchase = 1 THEN 1
+        ELSE 0
+    END AS has_purchase
+FROM raw_session_rollup;

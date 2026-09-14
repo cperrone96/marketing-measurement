@@ -225,18 +225,35 @@ def _seed_validated_fixture(database: Database) -> None:
             _event("page_view", 1609455600000000, "fixture-user-001", 1001, page_location="/"),
             _event("user_engagement", 1609457400000000, "fixture-user-001", 1001, engagement_time_msec=12000),
             _event("add_to_cart", 1609458300000000, "fixture-user-001", 1001, item_id="sku-001", item_quantity=1),
+            _event("begin_checkout", 1609458600000000, "fixture-user-001", 1001),
+            _event(
+                "purchase",
+                1609458900000000,
+                "fixture-user-001",
+                1001,
+                purchase_revenue=30.0,
+                items=[
+                    {"item_id": "sku-002", "quantity": 1, "item_revenue": 10.0},
+                    {"item_id": "sku-003", "quantity": 2, "item_revenue": 20.0},
+                ],
+            ),
             _event("purchase", 1609459200000000, "fixture-user-001", 1001, purchase_revenue=39.0, item_id="sku-001", item_quantity=2, item_revenue=39.0),
             _event("purchase", 1609459200000000, "fixture-user-001", 1001, purchase_revenue=39.0, item_id="sku-001", item_quantity=2, item_revenue=39.0),
+            _event("purchase", 1609545600000000, "adversarial-user", 1003),
             _event("page_view", -1, "quarantined-user", 9999, page_location="/blocked"),
         ]
     )
     additions.insert(0, "source_row_id", range(len(source), len(source) + len(additions)))
     frame = pd.concat([source, additions], ignore_index=True, sort=False)
     report = validate_ga4_events(frame)
-    assert report.valid_count == 7
+    assert report.valid_count == 10
     assert report.quarantine_count == 1
 
-    event_rows = [_raw_row(row) for row in report.valid.to_dict(orient="records")]
+    event_rows = [
+        event_row
+        for row in report.valid.to_dict(orient="records")
+        for event_row in _raw_rows(row)
+    ]
     placeholders = "?" if database.engine == "duckdb" else "%s"
     database.executemany(
         f"INSERT INTO raw_public.ga4_events VALUES ({', '.join([placeholders] * 22)})",
@@ -280,12 +297,13 @@ def _event(
     for key in ("item_id", "item_name", "item_category", "item_quantity", "item_revenue"):
         if key in fields:
             item[{"item_quantity": "quantity"}.get(key, key)] = fields[key]
+    items = fields.get("items", [item] if item else [])
     return {
         "event_timestamp": event_timestamp,
         "event_name": event_name,
         "user_pseudo_id": user_pseudo_id,
         "event_params": parameters,
-        "items": [item] if item else [],
+        "items": items,
         "traffic_source": {"source": "google", "medium": "organic", "name": "spring"},
         "device": {"category": "desktop"},
         "geo": {"country": "United States"},
@@ -294,35 +312,40 @@ def _event(
     }
 
 
-def _raw_row(row: dict[str, Any]) -> tuple[Any, ...]:
+def _raw_rows(row: dict[str, Any]) -> list[tuple[Any, ...]]:
     params = row.get("event_params") or {}
     items = row.get("items") or []
-    item = items[0] if items else {}
-    values = (
-        row["source_row_id"],
-        row["event_timestamp"],
-        row["event_name"],
-        row["user_pseudo_id"],
-        params.get("ga_session_id"),
-        params.get("page_location"),
-        params.get("page_title"),
-        row.get("traffic_source_source"),
-        row.get("traffic_source_medium"),
-        row.get("traffic_source_name"),
-        row.get("device_category"),
-        row.get("geo_country"),
-        row.get("privacy_info_analytics_storage"),
-        params.get("engagement_time_msec"),
-        row.get("ecommerce_purchase_revenue"),
-        row.get("ecommerce_transaction_id"),
-        0 if items else None,
-        item.get("item_id"),
-        item.get("item_name"),
-        item.get("item_category"),
-        item.get("quantity"),
-        item.get("item_revenue"),
-    )
-    return tuple(_database_value(value) for value in values)
+    item_rows = list(enumerate(items)) if items else [(None, {})]
+    return [
+        tuple(
+            _database_value(value)
+            for value in (
+                row["source_row_id"],
+                row["event_timestamp"],
+                row["event_name"],
+                row["user_pseudo_id"],
+                params.get("ga_session_id"),
+                params.get("page_location"),
+                params.get("page_title"),
+                row.get("traffic_source_source"),
+                row.get("traffic_source_medium"),
+                row.get("traffic_source_name"),
+                row.get("device_category"),
+                row.get("geo_country"),
+                row.get("privacy_info_analytics_storage"),
+                params.get("engagement_time_msec"),
+                row.get("ecommerce_purchase_revenue"),
+                row.get("ecommerce_transaction_id"),
+                item_index,
+                item.get("item_id"),
+                item.get("item_name"),
+                item.get("item_category"),
+                item.get("quantity"),
+                item.get("item_revenue"),
+            )
+        )
+        for item_index, item in item_rows
+    ]
 
 
 def _database_value(value: Any) -> Any:
@@ -331,40 +354,99 @@ def _database_value(value: Any) -> Any:
 
 
 def test_funnel_is_monotonic(db: Database) -> None:
-    row = db.sql("SELECT * FROM analytics.mart_funnel_total").fetchone()
-    assert row[0] == 2
-    assert row[0] >= row[1] >= row[2] >= row[3]
+    row = db.sql(
+        "SELECT views, engaged_sessions, add_to_carts, checkouts, purchases, users "
+        "FROM analytics.mart_funnel_total"
+    ).fetchone()
+    assert row == (1, 1, 1, 1, 1, 2)
+    assert row[0] >= row[1] >= row[2] >= row[3] >= row[4]
 
 
 def test_session_revenue_reconciles_to_events(db: Database) -> None:
     event_total = db.sql("SELECT SUM(purchase_revenue) FROM staging.stg_ga4_events").fetchone()[0]
     mart_total = db.sql("SELECT SUM(revenue) FROM analytics.mart_sessions").fetchone()[0]
-    assert event_total == 39.0
+    assert event_total == 69.0
     assert mart_total == event_total
 
 
 def test_quarantined_and_duplicate_rows_do_not_reach_marts(db: Database) -> None:
     assert db.sql("SELECT COUNT(*) FROM raw_public.ga4_events_quarantine").fetchone()[0] == 1
-    assert db.sql("SELECT COUNT(*) FROM staging.stg_ga4_events").fetchone()[0] == 5
+    assert db.sql("SELECT COUNT(*) FROM staging.stg_ga4_events").fetchone()[0] == 9
     assert db.sql("SELECT SUM(purchases) FROM analytics.mart_funnel_total").fetchone()[0] == 1
 
 
-def test_marts_preserve_unmeasured_revenue_and_expose_rate_inputs(db: Database) -> None:
+def test_unmeasured_session_ids_remain_in_staging_but_not_marts(db: Database) -> None:
+    assert db.sql(
+        "SELECT COUNT(*) FROM staging.stg_ga4_events WHERE ga_session_id IS NULL"
+    ).fetchone()[0] == 1
+    assert db.sql(
+        "SELECT COUNT(*) FROM analytics.mart_sessions WHERE ga_session_id IS NULL"
+    ).fetchone()[0] == 0
+    assert db.sql("SELECT COUNT(*) FROM analytics.mart_sessions").fetchone()[0] == 2
+
+
+def test_hierarchical_funnel_excludes_adversarial_purchase_without_prior_stages(
+    db: Database,
+) -> None:
+    raw_flags = db.sql(
+        """
+        SELECT
+            raw_has_page_view,
+            raw_is_engaged,
+            raw_has_add_to_cart,
+            raw_has_begin_checkout,
+            raw_has_purchase,
+            has_purchase
+        FROM analytics.mart_sessions
+        WHERE user_pseudo_id = 'adversarial-user'
+        """
+    ).fetchone()
+    rate_inputs = db.sql(
+        """
+        SELECT
+            engaged_sessions_numerator,
+            engaged_sessions_denominator,
+            add_to_carts_numerator,
+            add_to_carts_denominator,
+            checkouts_numerator,
+            checkouts_denominator,
+            purchases_numerator,
+            purchases_denominator
+        FROM analytics.mart_funnel_total
+        """
+    ).fetchone()
+    assert raw_flags == (0, 0, 0, 0, 1, 0)
+    assert rate_inputs == (1, 1, 1, 1, 1, 1, 1, 1)
+
+
+def test_two_item_purchase_reconciles_without_session_or_funnel_inflation(db: Database) -> None:
     session = db.sql(
         """
-        SELECT revenue FROM analytics.mart_sessions
-        WHERE user_pseudo_id = 'fixture-user-002'
+        SELECT event_count, purchase_events, revenue
+        FROM analytics.mart_sessions
+        WHERE user_pseudo_id = 'fixture-user-001' AND ga_session_id = 1001
         """
     ).fetchone()
-    funnel = db.sql("SELECT * FROM analytics.mart_funnel_total").fetchone()
-    assert session[0] is None
-    assert funnel[4:10] == (1, 2, 1, 1, 1, 1)
-
-
-def test_product_and_cohort_marts_reconcile_fixture_values(db: Database) -> None:
-    product = db.sql(
-        "SELECT units, revenue, purchases FROM analytics.mart_products WHERE item_id = 'sku-001'"
+    funnel = db.sql(
+        "SELECT users, purchases, revenue FROM analytics.mart_funnel_total"
     ).fetchone()
+    products = db.sql(
+        """
+        SELECT item_id, units, revenue, purchases
+        FROM analytics.mart_products
+        WHERE item_id IN ('sku-002', 'sku-003')
+        ORDER BY item_id
+        """
+    ).fetchall()
+    product_totals = db.sql(
+        "SELECT SUM(units), SUM(revenue) FROM analytics.mart_products"
+    ).fetchone()
+    assert session == (6, 2, 69.0)
+    assert funnel == (2, 1, 69.0)
+    assert products == [("sku-002", 1.0, 10.0, 1), ("sku-003", 2.0, 20.0, 1)]
+    assert product_totals == (6.0, 69.0)
+
+
+def test_cohort_mart_reconciles_measured_session_users(db: Database) -> None:
     cohort = db.sql("SELECT SUM(cohort_users), SUM(retained_users) FROM analytics.mart_cohorts").fetchone()
-    assert product == (3.0, 39.0, 1)
     assert cohort == (2, 2)
