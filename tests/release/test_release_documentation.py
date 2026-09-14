@@ -109,6 +109,7 @@ def test_every_readme_finding_matches_authoritative_evidence_and_is_traceable() 
         for fragment in fragments:
             assert fragment in section
     _assert_standard_finding_fields(sections[4])
+    _assert_attribution_scope_matches(sections[3], findings)
     _assert_model_claim_matches(sections[4], model_card)
     _assert_decisions_and_limitations(sections)
 
@@ -143,6 +144,37 @@ def test_false_model_flagged_share_is_rejected() -> None:
 
     with pytest.raises(AssertionError):
         _assert_model_claim_matches(falsified, model_card)
+
+
+def test_false_model_sample_percentage_is_rejected() -> None:
+    model_section = _readme_finding(4)
+    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
+    falsified = model_section.replace("10% user-level sample", "99% user-level sample")
+
+    with pytest.raises(AssertionError):
+        _assert_model_claim_matches(falsified, model_card)
+
+
+def test_false_attribution_lookback_is_rejected() -> None:
+    findings = json.loads(
+        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
+    )
+    falsified = _readme_finding(3).replace("30-day", "300-day")
+
+    with pytest.raises(AssertionError):
+        _assert_attribution_scope_matches(falsified, findings)
+
+
+def test_false_attribution_method_count_is_rejected() -> None:
+    findings = json.loads(
+        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
+    )
+    falsified = _readme_finding(3).replace(
+        "four attribution methods", "forty attribution methods"
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_attribution_scope_matches(falsified, findings)
 
 
 @pytest.mark.parametrize(
@@ -269,6 +301,9 @@ def _assert_standard_finding_fields(section: str) -> None:
 
 
 def _assert_model_claim_matches(section: str, model_card: str) -> None:
+    sample = re.search(r"deterministically samples ([\d.]+)% of users", model_card)
+    assert sample is not None
+    sample_percentage = sample.group(1)
     capacity = re.search(
         r"threshold is ([0-9]+(?:\.[0-9]+)?).*?flags ([\d,]+) of ([\d,]+) "
         r"held-out sessions\s+\(([0-9]+(?:\.[0-9]+)?) per\s+1,000\), with "
@@ -286,6 +321,7 @@ def _assert_model_claim_matches(section: str, model_card: str) -> None:
     assert confusion is not None
     conversions = sum(int(value.replace(",", "")) for value in confusion.groups())
     expected_fragments = (
+        f"deterministic {sample_percentage}% user-level sample",
         _model_card_value(model_card, "Logistic regression, held out", "PR-AUC"),
         _model_card_value(model_card, "No-skill prevalence, held out", "PR-AUC"),
         f"{holdout_count:,}",
@@ -298,6 +334,37 @@ def _assert_model_claim_matches(section: str, model_card: str) -> None:
     )
     for fragment in expected_fragments:
         assert fragment in section
+
+
+def _assert_attribution_scope_matches(
+    section: str, findings: dict[str, object]
+) -> None:
+    attribution = findings["attribution"]
+    assert isinstance(attribution, dict)
+    eligibility = str(attribution["eligibility"])
+    lookback = re.search(r"full (\d+)-day source-window lookback", eligibility)
+    assert lookback is not None
+    credit_totals = attribution["credit_totals"]
+    assert isinstance(credit_totals, dict)
+    method_count = len(credit_totals)
+    number_words = {
+        1: "one",
+        2: "two",
+        3: "three",
+        4: "four",
+        5: "five",
+        6: "six",
+        7: "seven",
+        8: "eight",
+        9: "nine",
+        10: "ten",
+    }
+    assert method_count in number_words
+    normalized = " ".join(section.lower().split())
+    assert (
+        f"complete {lookback.group(1)}-day source-window lookback" in normalized
+    )
+    assert f"the {number_words[method_count]} attribution methods" in normalized
 
 
 def _readme_finding(number: int) -> str:
