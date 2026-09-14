@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package and test tools
+        run: python -m pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Type check
+        run: mypy src api
+
+      - name: Test redistributable local fixtures and artifacts
+        run: pytest -q
+
+      - name: Smoke-test notebooks offline
+        run: make notebook-smoke PYTHON=python
+
+      - name: Verify reviewed query and result checksums
+        run: make verify-checksums

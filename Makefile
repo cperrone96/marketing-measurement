@@ -1,22 +1,29 @@
-.PHONY: test lint typecheck ingest api dashboard
+.PHONY: test lint typecheck notebook-smoke verify-checksums release-gate api dashboard
+
+PYTHON ?= .venv/bin/python
+NOTEBOOK_OUTPUT_DIR ?= .artifacts/notebook-smoke
 
 test:
-	pytest tests/test_config.py -v
+	$(PYTHON) -m pytest -q
 
 lint:
-	ruff check .
+	$(PYTHON) -m ruff check .
 
 typecheck:
-	mypy src
+	$(PYTHON) -m mypy src api
 
-ingest:
-	@echo "ingest is not available until a later implementation stage." >&2
-	@exit 1
+notebook-smoke:
+	mkdir -p $(NOTEBOOK_OUTPUT_DIR)
+	PATH="$(CURDIR)/.venv/bin:$$PATH" $(PYTHON) -m nbconvert --to notebook --execute --output-dir $(NOTEBOOK_OUTPUT_DIR) notebooks/01_public_data_findings.ipynb
+	PATH="$(CURDIR)/.venv/bin:$$PATH" $(PYTHON) -m nbconvert --to notebook --execute --output-dir $(NOTEBOOK_OUTPUT_DIR) notebooks/02_conversion_model.ipynb
+
+verify-checksums:
+	shasum -a 256 -c docs/release-checksums.sha256
+
+release-gate: lint typecheck test notebook-smoke verify-checksums
 
 api:
-	@echo "api is not available until a later implementation stage." >&2
-	@exit 1
+	$(PYTHON) -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 dashboard:
-	@echo "dashboard is not available until a later implementation stage." >&2
-	@exit 1
+	$(PYTHON) -m dashboard.app

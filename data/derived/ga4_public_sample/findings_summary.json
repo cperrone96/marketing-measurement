@@ -166,7 +166,7 @@
     "coverage_end": "2021-01-31",
     "coverage_start": "2020-11-01",
     "dataset": "bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*",
-    "retrieved_at_utc": "2026-09-11T14:04:14.831662+00:00",
+    "retrieved_at_utc": "2026-09-11T14:32:58.431586+00:00",
     "session_channel_definition": "first paired event-scoped source/medium in each session"
   }
 }
