@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import ceil, sqrt
+from math import ceil, isfinite, sqrt
+from statistics import NormalDist
 
 import pandas as pd
 
 _EVIDENCE_TYPE = "synthetic"
-_Z_ALPHA_TWO_SIDED = 1.959963984540054
-_Z_POWER_80 = 0.8416212335729143
+_STANDARD_NORMAL = NormalDist()
 
 
 @dataclass(frozen=True)
 class ExperimentDesign:
-    """The single predeclared variable and its fixed decision gate."""
+    """The predeclared single variable, estimand, and decision gate."""
 
     hypothesis: str = (
-        "For synthetic eligible subjects, benefit-focused message copy increases "
-        "conversion rate versus plain message copy."
+        "For all randomized synthetic audience candidates, benefit-focused message "
+        "copy increases conversion rate versus plain message copy, regardless of "
+        "downstream consent, matching, delivery, or exposure outcomes."
     )
     variable: str = "message_variant"
     primary_metric: str = "conversion_rate"
@@ -29,20 +30,38 @@ class ExperimentDesign:
     baseline_rate: float = 0.12
     minimum_detectable_effect: float = 0.03
 
+    def __post_init__(self) -> None:
+        _validate_probability("alpha", self.alpha)
+        _validate_probability("target_power", self.target_power)
+        _validate_probability("baseline_rate", self.baseline_rate)
+        if not isfinite(self.minimum_detectable_effect) or self.minimum_detectable_effect <= 0:
+            raise ValueError("minimum_detectable_effect must be finite and greater than zero")
+        if self.baseline_rate + self.minimum_detectable_effect >= 1:
+            raise ValueError("baseline_rate + minimum_detectable_effect must be below one")
+
+    @property
+    def confidence_level(self) -> float:
+        """The two-sided confidence level paired with the configured alpha."""
+        return 1 - self.alpha
+
     @property
     def planned_sample_per_arm(self) -> int:
-        """Normal-approximation sample size for a two-sided proportion test."""
+        """Normal-approximation sample size using configured alpha and power."""
         treatment_rate = self.baseline_rate + self.minimum_detectable_effect
         variance = self.baseline_rate * (1 - self.baseline_rate) + treatment_rate * (
             1 - treatment_rate
         )
-        z_total = _Z_ALPHA_TWO_SIDED + _Z_POWER_80
-        return ceil((z_total**2 * variance) / self.minimum_detectable_effect**2)
+        z_alpha = _STANDARD_NORMAL.inv_cdf(1 - self.alpha / 2)
+        z_power = _STANDARD_NORMAL.inv_cdf(self.target_power)
+        return ceil(
+            ((z_alpha + z_power) ** 2 * variance)
+            / self.minimum_detectable_effect**2
+        )
 
 
 @dataclass(frozen=True)
 class ExperimentResult:
-    """A traceable analysis result; this is not a campaign-performance claim."""
+    """A traceable synthetic result; it is not a campaign-performance claim."""
 
     design: ExperimentDesign
     assignment_counts: dict[str, int]
@@ -51,6 +70,7 @@ class ExperimentResult:
     primary_metric: str
     itt_effect: float
     confidence_interval: tuple[float, float]
+    confidence_level: float
     secondary_metric_effects: dict[str, float]
     guardrail_metric_effects: dict[str, float]
     meets_sample_size_gate: bool
@@ -61,11 +81,11 @@ class ExperimentResult:
 def analyze_experiment(
     records: pd.DataFrame, design: ExperimentDesign | None = None
 ) -> ExperimentResult:
-    """Estimate treatment-minus-control under fixed 50/50 intent-to-treat rules.
+    """Estimate treatment-minus-control for every randomized candidate (ITT).
 
-    The calculation never filters on delivery, exposure, or outcome.  When the
-    predeclared sample-size gate is unmet, it reports an inconclusive synthetic
-    demonstration and does not promote either arm as a winner.
+    No post-randomization delivery, exposure, consent, match, or outcome filter is
+    applied. When the predeclared sample-size gate is unmet, the result remains an
+    inconclusive synthetic demonstration and cannot name a winner.
     """
     design = design or ExperimentDesign()
     _validate_experiment_records(records)
@@ -78,7 +98,7 @@ def analyze_experiment(
     control = records.loc[records["experiment_assignment"] == "control"]
     treatment = records.loc[records["experiment_assignment"] == "treatment"]
     itt_effect, confidence_interval = _difference_with_ci(
-        treatment["outcome_conversion"], control["outcome_conversion"]
+        treatment["outcome_conversion"], control["outcome_conversion"], design.alpha
     )
     secondary, guardrails = _metric_effects(treatment, control)
     balance_checks = {
@@ -103,10 +123,11 @@ def analyze_experiment(
         design=design,
         assignment_counts={"control": control_count, "treatment": treatment_count},
         balance_checks=balance_checks,
-        analysis_population="intent-to-treat",
+        analysis_population="all randomized synthetic audience candidates (intent-to-treat)",
         primary_metric=design.primary_metric,
         itt_effect=itt_effect,
         confidence_interval=confidence_interval,
+        confidence_level=design.confidence_level,
         secondary_metric_effects=secondary,
         guardrail_metric_effects=guardrails,
         meets_sample_size_gate=meets_gate,
@@ -115,7 +136,7 @@ def analyze_experiment(
 
 
 def _difference_with_ci(
-    treatment: pd.Series, control: pd.Series
+    treatment: pd.Series, control: pd.Series, alpha: float
 ) -> tuple[float, tuple[float, float]]:
     treatment_rate = float(treatment.astype(float).mean())
     control_rate = float(control.astype(float).mean())
@@ -124,7 +145,8 @@ def _difference_with_ci(
         treatment_rate * (1 - treatment_rate) / len(treatment)
         + control_rate * (1 - control_rate) / len(control)
     )
-    interval = (effect - _Z_ALPHA_TWO_SIDED * standard_error, effect + _Z_ALPHA_TWO_SIDED * standard_error)
+    z_alpha = _STANDARD_NORMAL.inv_cdf(1 - alpha / 2)
+    interval = (effect - z_alpha * standard_error, effect + z_alpha * standard_error)
     return effect, interval
 
 
@@ -132,9 +154,23 @@ def _metric_effects(
     treatment: pd.DataFrame, control: pd.DataFrame
 ) -> tuple[dict[str, float], dict[str, float]]:
     return (
-        {"click_rate": float(treatment["outcome_click"].mean() - control["outcome_click"].mean())},
-        {"opt_out_rate": float(treatment["guardrail_opt_out"].mean() - control["guardrail_opt_out"].mean())},
+        {
+            "click_rate": float(
+                treatment["outcome_click"].mean() - control["outcome_click"].mean()
+            )
+        },
+        {
+            "opt_out_rate": float(
+                treatment["guardrail_opt_out"].mean()
+                - control["guardrail_opt_out"].mean()
+            )
+        },
     )
+
+
+def _validate_probability(name: str, value: float) -> None:
+    if not isfinite(value) or not 0 < value < 1:
+        raise ValueError(f"{name} must be finite and strictly between zero and one")
 
 
 def _validate_experiment_records(records: pd.DataFrame) -> None:
