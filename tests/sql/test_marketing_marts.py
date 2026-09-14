@@ -420,6 +420,27 @@ def test_hierarchical_funnel_excludes_adversarial_purchase_without_prior_stages(
 
 
 def test_two_item_purchase_reconciles_without_session_or_funnel_inflation(db: Database) -> None:
+    staged_items = db.sql(
+        """
+        SELECT source_row_id, item_index, item_id, item_quantity, item_revenue, purchase_revenue
+        FROM staging.stg_ga4_events
+        WHERE user_pseudo_id = 'fixture-user-001'
+            AND ga_session_id = 1001
+            AND event_name = 'purchase'
+            AND event_timestamp = 1609458900000000
+        ORDER BY item_index
+        """
+    ).fetchall()
+    staged_event = db.sql(
+        """
+        SELECT COUNT(DISTINCT source_row_id), SUM(purchase_revenue)
+        FROM staging.stg_ga4_events
+        WHERE user_pseudo_id = 'fixture-user-001'
+            AND ga_session_id = 1001
+            AND event_name = 'purchase'
+            AND event_timestamp = 1609458900000000
+        """
+    ).fetchone()
     session = db.sql(
         """
         SELECT event_count, purchase_events, revenue
@@ -441,6 +462,11 @@ def test_two_item_purchase_reconciles_without_session_or_funnel_inflation(db: Da
     product_totals = db.sql(
         "SELECT SUM(units), SUM(revenue) FROM analytics.mart_products"
     ).fetchone()
+    assert staged_items == [
+        (6, 0, "sku-002", 1.0, 10.0, 30.0),
+        (6, 1, "sku-003", 2.0, 20.0, None),
+    ]
+    assert staged_event == (1, 30.0)
     assert session == (6, 2, 69.0)
     assert funnel == (2, 1, 69.0)
     assert products == [("sku-002", 1.0, 10.0, 1), ("sku-003", 2.0, 20.0, 1)]
