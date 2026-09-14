@@ -35,6 +35,10 @@ _REVENUE_FIELDS = frozenset(
         "refund_value_in_usd",
     }
 )
+_AGGREGATE_QUANTITY_FIELDS = frozenset({"total_item_quantity", "unique_items"})
+_ITEM_REVENUE_FIELDS = frozenset({"item_revenue", "item_revenue_in_usd"})
+_NORMALIZATION_ERRORS_KEY = "_normalization_errors"
+_RAW_VALUE_KEY = "_raw_value"
 
 
 @dataclass(frozen=True)
@@ -87,14 +91,24 @@ def _normalize_ga4_events(frame: pd.DataFrame) -> pd.DataFrame:
     if "source_row_id" not in normalized.columns:
         normalized.insert(0, "source_row_id", list(normalized.index))
 
-    for column in ("event_params", "items", "traffic_source", "device", "geo", "ecommerce", "privacy_info"):
+    for column in (
+        "event_params",
+        "items",
+        "traffic_source",
+        "device",
+        "geo",
+        "ecommerce",
+        "privacy_info",
+    ):
         if column not in normalized.columns:
             normalized[column] = None
 
     normalized["event_params"] = normalized["event_params"].map(_normalize_event_params)
     normalized["items"] = normalized["items"].map(_normalize_items)
     for field in ("traffic_source", "device", "geo", "privacy_info"):
-        normalized[field] = normalized[field].map(_normalize_mapping)
+        normalized[field] = normalized[field].map(
+            _normalize_mapping_for_field(field)
+        )
         normalized = _add_nested_columns(normalized, field)
 
     normalized["ecommerce"] = normalized["ecommerce"].map(_normalize_ecommerce)
@@ -105,21 +119,30 @@ def _normalize_ga4_events(frame: pd.DataFrame) -> pd.DataFrame:
 def _normalize_event_params(value: Any) -> dict[str, Any] | None:
     if _is_missing(value):
         return None
-    if isinstance(value, dict):
-        # Already-normalized fixtures are permitted and retain their source values.
-        return dict(value)
     if not isinstance(value, list):
-        return None
+        return _malformed_value("event_params_not_list", value)
 
     params: dict[str, Any] = {}
+    errors: list[str] = []
+    invalid_entries: list[Any] = []
     for parameter in value:
         if not isinstance(parameter, dict):
+            errors.append("event_param_not_object")
+            invalid_entries.append(parameter)
             continue
         key = parameter.get("key")
         if not isinstance(key, str) or not key:
+            errors.append("event_param_key_malformed")
+            invalid_entries.append(parameter)
             continue
         raw_value = parameter.get("value")
+        if not _is_valid_ga4_parameter_value(raw_value):
+            errors.append("event_param_value_malformed")
+            invalid_entries.append(parameter)
         params[key] = _ga4_parameter_value(raw_value)
+    if errors:
+        params[_NORMALIZATION_ERRORS_KEY] = sorted(set(errors))
+        params["_raw_invalid_entries"] = invalid_entries
     return params
 
 
@@ -135,38 +158,61 @@ def _ga4_parameter_value(value: Any) -> Any:
     return None
 
 
-def _normalize_items(value: Any) -> list[dict[str, Any]] | None:
+def _is_valid_ga4_parameter_value(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if "string_value" in value and isinstance(value["string_value"], str):
+        return True
+    return any(
+        key in value and _number_or_none(value[key]) is not None
+        for key in ("int_value", "double_value", "float_value")
+    )
+
+
+def _normalize_items(value: Any) -> list[dict[str, Any]] | dict[str, Any] | None:
     if _is_missing(value):
         return None
     if not isinstance(value, list):
-        return None
+        return _malformed_value("items_not_list", value)
     items: list[dict[str, Any]] = []
     for item in value:
         if not isinstance(item, dict):
-            items.append({"_malformed_item": item})
+            items.append(_malformed_value("item_not_object", item))
             continue
         normalized_item = dict(item)
         for field in ("quantity", "price", "item_revenue", "item_revenue_in_usd"):
             if field in normalized_item:
-                normalized_item[field] = _number_or_none(normalized_item[field])
+                number = _number_or_none(normalized_item[field])
+                if number is not None or _is_missing(normalized_item[field]):
+                    normalized_item[field] = number
         items.append(normalized_item)
     return items
 
 
-def _normalize_mapping(value: Any) -> dict[str, Any] | None:
-    if not isinstance(value, dict):
+def _normalize_mapping(value: Any, field: str) -> dict[str, Any] | None:
+    if _is_missing(value):
         return None
+    if not isinstance(value, dict):
+        return _malformed_value(f"{field}_not_object", value)
     return dict(value)
 
 
 def _normalize_ecommerce(value: Any) -> dict[str, Any] | None:
-    normalized = _normalize_mapping(value)
+    normalized = _normalize_mapping(value, "ecommerce")
     if normalized is None:
         return None
     for field in _ECOMMERCE_NUMERIC_FIELDS:
         if field in normalized:
-            normalized[field] = _number_or_none(normalized[field])
+            number = _number_or_none(normalized[field])
+            # Keep malformed source text visible for the contract validator rather
+            # than turning it into a missing value.
+            if number is not None or _is_missing(normalized[field]):
+                normalized[field] = number
     return normalized
+
+
+def _malformed_value(reason: str, value: Any) -> dict[str, Any]:
+    return {_NORMALIZATION_ERRORS_KEY: [reason], _RAW_VALUE_KEY: value}
 
 
 def _add_nested_columns(frame: pd.DataFrame, field: str) -> pd.DataFrame:
@@ -192,6 +238,13 @@ def _extract_nested_value_for_key(key: str) -> Callable[[Any], Any]:
     return extract
 
 
+def _normalize_mapping_for_field(field: str) -> Callable[[Any], dict[str, Any] | None]:
+    def normalize(value: Any) -> dict[str, Any] | None:
+        return _normalize_mapping(value, field)
+
+    return normalize
+
+
 def _validation_reasons(row: dict[str, Any]) -> list[str]:
     reasons: list[str] = []
     event_time = _event_time(row.get("event_timestamp"))
@@ -207,10 +260,27 @@ def _validation_reasons(row: dict[str, Any]) -> list[str]:
     if not isinstance(event_name, str) or not event_name.strip():
         reasons.append("event_name_malformed")
 
+    if _has_normalization_errors(row.get("event_params")):
+        reasons.append("event_params_malformed")
+    if _has_normalization_errors(row.get("items")):
+        reasons.append("items_malformed")
+    for field in ("traffic_source", "device", "geo", "privacy_info", "ecommerce"):
+        if _has_normalization_errors(row.get(field)):
+            reasons.append(f"{field}_malformed")
     if _has_impossible_item_quantity(row.get("items")):
         reasons.append("item_quantity_invalid")
+    if _has_invalid_item_revenue(row.get("items")):
+        reasons.append("item_revenue_invalid")
+    if _has_negative_item_revenue(row.get("items")):
+        reasons.append("item_revenue_negative")
+    if _has_invalid_ecommerce_revenue(row.get("ecommerce")):
+        reasons.append("ecommerce_revenue_invalid")
     if _has_negative_ecommerce_revenue(row.get("ecommerce")):
         reasons.append("ecommerce_revenue_negative")
+    if _has_invalid_ecommerce_aggregate_quantity(row.get("ecommerce")):
+        reasons.append("ecommerce_aggregate_quantity_invalid")
+    if _has_negative_ecommerce_aggregate_quantity(row.get("ecommerce")):
+        reasons.append("ecommerce_aggregate_quantity_negative")
     return reasons
 
 
@@ -238,6 +308,51 @@ def _has_impossible_item_quantity(items: Any) -> bool:
     return False
 
 
+def _has_normalization_errors(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(value.get(_NORMALIZATION_ERRORS_KEY))
+    if isinstance(value, list):
+        return any(_has_normalization_errors(entry) for entry in value)
+    return False
+
+
+def _has_invalid_item_revenue(items: Any) -> bool:
+    return _has_invalid_item_number(items, _ITEM_REVENUE_FIELDS)
+
+
+def _has_negative_item_revenue(items: Any) -> bool:
+    if not isinstance(items, list):
+        return False
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for field in _ITEM_REVENUE_FIELDS:
+            if field not in item or _is_missing(item[field]):
+                continue
+            value = _number_or_none(item[field])
+            if value is not None and value < 0:
+                return True
+    return False
+
+
+def _has_invalid_item_number(items: Any, fields: frozenset[str]) -> bool:
+    if not isinstance(items, list):
+        return False
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for field in fields:
+            if field not in item or _is_missing(item[field]):
+                continue
+            if _number_or_none(item[field]) is None:
+                return True
+    return False
+
+
+def _has_invalid_ecommerce_revenue(ecommerce: Any) -> bool:
+    return _has_invalid_ecommerce_number(ecommerce, _REVENUE_FIELDS)
+
+
 def _has_negative_ecommerce_revenue(ecommerce: Any) -> bool:
     if not isinstance(ecommerce, dict):
         return False
@@ -245,7 +360,34 @@ def _has_negative_ecommerce_revenue(ecommerce: Any) -> bool:
         if field not in ecommerce or _is_missing(ecommerce[field]):
             continue
         value = _number_or_none(ecommerce[field])
-        if value is None or value < 0:
+        if value is not None and value < 0:
+            return True
+    return False
+
+
+def _has_invalid_ecommerce_aggregate_quantity(ecommerce: Any) -> bool:
+    return _has_invalid_ecommerce_number(ecommerce, _AGGREGATE_QUANTITY_FIELDS)
+
+
+def _has_negative_ecommerce_aggregate_quantity(ecommerce: Any) -> bool:
+    if not isinstance(ecommerce, dict):
+        return False
+    for field in _AGGREGATE_QUANTITY_FIELDS:
+        if field not in ecommerce or _is_missing(ecommerce[field]):
+            continue
+        value = _number_or_none(ecommerce[field])
+        if value is not None and value < 0:
+            return True
+    return False
+
+
+def _has_invalid_ecommerce_number(ecommerce: Any, fields: frozenset[str]) -> bool:
+    if not isinstance(ecommerce, dict):
+        return False
+    for field in fields:
+        if field not in ecommerce or _is_missing(ecommerce[field]):
+            continue
+        if _number_or_none(ecommerce[field]) is None:
             return True
     return False
 

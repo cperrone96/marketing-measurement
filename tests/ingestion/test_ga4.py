@@ -111,6 +111,101 @@ def test_ga4_contract_quarantines_negative_revenue_and_bad_item_quantity(
     ]
 
 
+def test_ga4_contract_quarantines_malformed_event_parameter_shapes(
+    ga4_fixture: pd.DataFrame,
+) -> None:
+    ga4_fixture.at[0, "event_params"] = [
+        "not a parameter object",
+        {"key": "", "value": {"string_value": "invalid key"}},
+        {"key": "bad_value", "value": "not a GA4 value object"},
+    ]
+    ga4_fixture.at[1, "event_params"] = {"unexpected": "mapping"}
+
+    report = validate_ga4_events(ga4_fixture)
+
+    assert report.valid_count == 0
+    assert report.quarantine["reason"].tolist() == [
+        "event_params_malformed",
+        "event_params_malformed",
+    ]
+    first_params = report.quarantine.iloc[0]["event_params"]
+    second_params = report.quarantine.iloc[1]["event_params"]
+    assert first_params["_normalization_errors"] == [
+        "event_param_key_malformed",
+        "event_param_not_object",
+        "event_param_value_malformed",
+    ]
+    assert first_params["_raw_invalid_entries"][0] == "not a parameter object"
+    assert second_params["_raw_value"] == {"unexpected": "mapping"}
+
+
+def test_ga4_contract_quarantines_malformed_nested_object_shapes(
+    ga4_fixture: pd.DataFrame,
+) -> None:
+    ga4_fixture.at[0, "items"] = {"item_id": "not-an-array"}
+    ga4_fixture.at[0, "traffic_source"] = "organic"
+    ga4_fixture.at[0, "device"] = ["desktop"]
+    ga4_fixture.at[0, "geo"] = 42
+    ga4_fixture.at[0, "privacy_info"] = "Yes"
+    ga4_fixture.at[0, "ecommerce"] = "not-an-object"
+
+    report = validate_ga4_events(ga4_fixture)
+
+    quarantined = report.quarantine.iloc[0]
+    assert quarantined["source_row_id"] == 0
+    assert quarantined["reason"] == "items_malformed"
+    assert quarantined["reasons"] == [
+        "items_malformed",
+        "traffic_source_malformed",
+        "device_malformed",
+        "geo_malformed",
+        "privacy_info_malformed",
+        "ecommerce_malformed",
+    ]
+    assert quarantined["items"]["_raw_value"] == {"item_id": "not-an-array"}
+    assert quarantined["ecommerce"]["_raw_value"] == "not-an-object"
+
+
+def test_ga4_contract_quarantines_non_numeric_quantities_and_revenue(
+    ga4_fixture: pd.DataFrame,
+) -> None:
+    ga4_fixture.at[0, "items"] = [
+        {"item_id": "sku-001", "quantity": "many", "item_revenue": "not-item-money"}
+    ]
+    ga4_fixture.at[0, "ecommerce"] = {
+        "purchase_revenue": "not-money",
+        "total_item_quantity": "unknown",
+    }
+
+    report = validate_ga4_events(ga4_fixture)
+
+    quarantined = report.quarantine.iloc[0]
+    assert quarantined["reason"] == "item_quantity_invalid"
+    assert quarantined["reasons"] == [
+        "item_quantity_invalid",
+        "item_revenue_invalid",
+        "ecommerce_revenue_invalid",
+        "ecommerce_aggregate_quantity_invalid",
+    ]
+    assert quarantined["items"][0]["quantity"] == "many"
+    assert quarantined["ecommerce"]["purchase_revenue"] == "not-money"
+
+
+def test_ga4_contract_quarantines_negative_ecommerce_aggregate_quantities(
+    ga4_fixture: pd.DataFrame,
+) -> None:
+    ga4_fixture.at[0, "ecommerce"] = {"total_item_quantity": -1}
+    ga4_fixture.at[1, "ecommerce"] = {"unique_items": -1}
+
+    report = validate_ga4_events(ga4_fixture)
+
+    assert report.valid_count == 0
+    assert report.quarantine["reason"].tolist() == [
+        "ecommerce_aggregate_quantity_negative",
+        "ecommerce_aggregate_quantity_negative",
+    ]
+
+
 def test_load_ga4_export_reads_nested_ndjson_and_preserves_source_identity(
     tmp_path: Path,
 ) -> None:
