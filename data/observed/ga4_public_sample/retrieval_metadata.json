@@ -52,6 +52,32 @@
       "sql_path": "sql/bigquery/conversion_channel_paths.sql",
       "sql_sha256": "0d5be971cad84c393086fc41014bb355fffb51c25255d31023864a920ecb85e6"
     },
+    "conversion_model_sessions": {
+      "dry_run": {
+        "bytes_billed": "0",
+        "bytes_processed": "1677485270",
+        "referenced_tables": [
+          {
+            "datasetId": "ga4_obfuscated_sample_ecommerce",
+            "projectId": "bigquery-public-data",
+            "tableId": "events_*"
+          }
+        ],
+        "statement_type": "SELECT"
+      },
+      "job": {
+        "bytes_billed": "1677721600",
+        "bytes_processed": "1677485270",
+        "cache_hit": false,
+        "job_id": "marketing_measurement_conversion_model_sessions_20260911141849533612",
+        "location": "US"
+      },
+      "result_path": "data/observed/ga4_public_sample/conversion_model_sessions.json.gz",
+      "result_sha256": "6d71b626f7734f261b217489e91d12af95a592955b3eb091542eb5c392b9a6b6",
+      "scope": "Identifier-free 10% deterministic user-level sample at one row per measured session for educational conversion-model evaluation.",
+      "sql_path": "sql/bigquery/conversion_model_sessions.sql",
+      "sql_sha256": "8bf1cf9099515ce457479c69d3808702e6684f7c21b528ae314aee2124fcd128"
+    },
     "event_parameter_availability": {
       "dry_run": {
         "bytes_billed": "0",
@@ -103,5 +129,5 @@
       "sql_sha256": "dccc2c607ae882e053eec80a039b31b5a5987d387d32e8833dee42befcbf928c"
     }
   },
-  "retrieved_at_utc": "2026-09-11T14:04:14.831662+00:00"
+  "retrieved_at_utc": "2026-09-11T14:18:59.511371+00:00"
 }

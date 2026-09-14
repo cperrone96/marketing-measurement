@@ -5,24 +5,25 @@
     "coverage_start": "2020-11-01",
     "coverage_end": "2021-01-31",
     "retrieval": {
-      "status": "retrieved_aggregate_only",
-      "retrieved_at_utc": "2026-09-11T14:04:14.831662+00:00",
+      "status": "retrieved_compact_aggregate_and_identifier_free_session_sample",
+      "retrieved_at_utc": "2026-09-11T14:18:59.511371+00:00",
       "project_id": "christina-data-portfolio-2026",
       "maximum_bytes_billed_per_query": 4000000000,
       "metadata_path": "data/observed/ga4_public_sample/retrieval_metadata.json",
-      "scope": "Four compact aggregate-only public-data results, including parameter availability; no raw event-level records were downloaded or committed."
+      "scope": "Four compact aggregate-only public-data results plus one identifier-free, deterministic 10% user-level session sample for educational conversion-model evaluation; no raw event-level records or unique identifiers were downloaded or committed."
     },
     "query_provenance": [
       "sql/bigquery/event_parameter_availability.sql",
       "sql/bigquery/funnel_daily_by_channel.sql",
       "sql/bigquery/cohort_retention.sql",
-      "sql/bigquery/conversion_channel_paths.sql"
+      "sql/bigquery/conversion_channel_paths.sql",
+      "sql/bigquery/conversion_model_sessions.sql"
     ]
   },
   "checksums": {
     "source_public_data_snapshot": {
       "algorithm": "sha256",
-      "value": "53e5b082fd74386cb0f6f005aeb02618c14d69db42e8689ea8156c658dce1d34",
+      "value": "c7b3ac63505d91e7559e6a37a68aeea840331483a4d742a024d7e96e75d359ee",
       "path": "data/observed/ga4_public_sample/retrieval_metadata.json",
       "status": "aggregate_only",
       "scope": "Observed Google public-sample retrieval metadata and checksums for aggregate-only outputs; not a raw event snapshot."
@@ -33,7 +34,8 @@
         "data/observed/ga4_public_sample/event_parameter_availability.json": "2beb075c9fc57f7178ea6c89f0f6df6edc0e594f360ea4b33e06d761fd353574",
         "data/observed/ga4_public_sample/funnel_daily_by_channel.json": "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
         "data/observed/ga4_public_sample/cohort_retention.json": "42cbe7d216b59b899901ff3017493715338910706edd048a50bfd6c0f355e2b7",
-        "data/observed/ga4_public_sample/conversion_channel_paths.json": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f"
+        "data/observed/ga4_public_sample/conversion_channel_paths.json": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f",
+        "data/observed/ga4_public_sample/conversion_model_sessions.json.gz": "6d71b626f7734f261b217489e91d12af95a592955b3eb091542eb5c392b9a6b6"
       }
     },
     "synthetic_test_fixture": {

@@ -3,14 +3,18 @@
 The intended public source is `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`.
 Its documented coverage for this project is **2020-11-01 through 2021-01-31**.
 
-No BigQuery data was downloaded for this repository task. The ingestion boundary reads
-locally supplied JSON or NDJSON exports shaped as nested GA4 event rows, so it neither
-requires Google credentials nor treats a local fixture as a public-data snapshot.
+Observed public outputs were retrieved with the documented billing project and a
+4 GB cap per query. The aggregate outputs are compact JSON files. The conversion
+model uses a separate 10% deterministic, identifier-free session sample compressed as
+`data/observed/ga4_public_sample/conversion_model_sessions.json.gz`; it contains one
+row per session but no raw user, session, transaction, or event identifier.
 
 ## Export-query provenance
 
-When retrieval is authorized, the expected export query must constrain table suffixes
-to the documented coverage:
+Every retrieval query constrains table suffixes to the documented coverage and uses a
+fully qualified public table. The model query is
+`sql/bigquery/conversion_model_sessions.sql`; its retrieval script dry-runs before it
+executes and records separate query and result hashes. A generic bounded example is:
 
 ```sql
 SELECT *
@@ -18,10 +22,10 @@ FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
 WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20210131'
 ```
 
-The manifest records retrieval status separately from fixture metadata. Its fixture
-checksum covers only `data/fixtures/ga4_schema_fixture.ndjson`, a small deterministic
-synthetic schema test fixture. It is never an observed Google data extract, snapshot,
-or checksum of the public dataset.
+The manifest records observed retrieval status separately from fixture metadata. Its
+fixture checksum covers only `data/fixtures/ga4_schema_fixture.ndjson`, a small
+deterministic synthetic schema test fixture. The fixture is never used to train,
+evaluate, or infer distributions for the conversion model.
 
 ## Validation policy
 

@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "pandas>=2.2,<3",
     "pydantic-settings>=2.6,<3",
+    "scikit-learn>=1.5,<2",
 ]
 
 [project.optional-dependencies]
