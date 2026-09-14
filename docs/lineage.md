@@ -11,7 +11,8 @@ not combine their records or support a mixed-evidence performance claim.
 | Source | `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*` | Obfuscated GA4 events, 2020-11-01 through 2021-01-31 | Read only by bounded queries in `sql/bigquery/` |
 | Retrieval | `scripts/retrieve_public_aggregates.py`, `scripts/retrieve_public_conversion_model.py` | Dry run first; explicit billing project; 4 GB cap per query | Query/result hashes and job metadata in `data/observed/ga4_public_sample/retrieval_metadata.json` |
 | Compact evidence | `data/observed/ga4_public_sample/*.json` | Aggregate funnel days/channels, true-first-touch cohorts, conversion paths, parameter availability | Public findings notebook and artifact repository |
-| Model evidence | `conversion_model_sessions.json.gz` | One row per measured session; 10% deterministic user-level sample; no raw identifier | Conversion notebook and model card |
+| Decision aggregates | `sql/bigquery/portfolio_decision_aggregates.sql` | Aggregate-only landing page, device, product/revenue, and stage-pattern rows | Typed KPI analysis sections and acquisition/journey dashboard records |
+| Model evidence | `conversion_model_sessions.json.gz` | One row per measured session; 10% deterministic user-level sample; no raw identifier | Conversion notebook, reviewed evaluation JSON, and model card |
 | Analysis | `src/marketing_measurement/analysis/`, `src/marketing_measurement/modeling/` | Tested descriptive rates, conserved attribution credit, group-disjoint model evaluation | `findings_summary.json`, model card, API service |
 | Interface | `api/` → `dashboard/` | Typed v1 responses; bounded dates/pagination; artifact hash and limitations | Five decision views and accessible table alternatives |
 

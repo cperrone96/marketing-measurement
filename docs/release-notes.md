@@ -7,7 +7,8 @@ First portfolio-ready release of the Marketing Measurement Decision Studio.
 ### Included
 
 - Validated public observed GA4 aggregates for 2020-11-01 through 2021-01-31,
-  bounded retrieval provenance, analytical SQL, and three traceable descriptive findings.
+  bounded retrieval provenance, analytical SQL, and traceable funnel, landing-page,
+  device, product/revenue, and high-value journey evidence.
 - One identifier-free public-sample conversion model with leakage controls, group-aware
   evaluation, baseline/calibration evidence, and a capacity-linked threshold.
 - Deterministic synthetic integration health, underpowered A/B demonstration, and
@@ -18,6 +19,20 @@ First portfolio-ready release of the Marketing Measurement Decision Studio.
   alternatives, responsive behavior, visible keyboard focus, and reduced motion.
 - Offline CI, complete UAT/lineage/metric/risk documentation, executable notebooks,
   and SHA-256 release verification.
+
+### Final review hardening
+
+- Preserved exact decimal/integer-cent budgets through API serialization, including
+  values above binary floating-point's exact-integer boundary, with finite magnitude
+  and precision bounds plus structured 422 failures.
+- Aligned experiment power to the marginal all-randomized ITT outcome implied by
+  consent, match, delivery, and exposure; the gate is now 4,209 per arm.
+- Removed the undisclosed source filter so KPI and funnel views share canonical totals.
+- Bound KPI and model responses to the actual findings and model-evaluation artifacts.
+- Stripped tracked notebook outputs and require fresh, source-matching executed copies.
+- Aligned local marts to paired event-scoped acquisition fields and corrected product
+  views/rates to use `view_item`.
+- Bound local PostgreSQL to `127.0.0.1` with a local-only password default.
 
 ### Verified public findings
 

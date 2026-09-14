@@ -1,0 +1,28 @@
+{
+  "evaluation_population": "7,245 held-out identifier-free public-sample sessions",
+  "metrics": {
+    "logistic_regression_held_out": {
+      "brier_score": 0.013582,
+      "pr_auc": 0.041429,
+      "roc_auc": 0.652281
+    },
+    "logistic_regression_training_cv": {
+      "brier_score": 0.012284,
+      "pr_auc": 0.043843,
+      "roc_auc": 0.707922
+    },
+    "no_skill_held_out": {
+      "brier_score": 0.013748,
+      "pr_auc": 0.013941,
+      "roc_auc": 0.5
+    },
+    "random_forest_held_out": {
+      "brier_score": 0.08539,
+      "pr_auc": 0.040626,
+      "roc_auc": 0.62904
+    }
+  },
+  "selected_model": "logistic_regression",
+  "selected_threshold": 0.035589,
+  "threshold_label": "capacity_50_per_1000_sessions"
+}

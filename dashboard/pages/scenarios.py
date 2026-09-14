@@ -165,5 +165,33 @@ def result_layout(result: BudgetScenarioResponse) -> html.Div:
                 chart_id="scenario-sensitivity",
             ),
             html.Ul([html.Li(item) for item in result.assumptions]),
+            html.Section(
+                [
+                    html.H2("Randomized experiment scenario"),
+                    html.P(result.experiment.conclusion),
+                    html.P(
+                        f"Marginal ITT design: {result.experiment.planned_sample_per_arm:,} "
+                        f"planned per arm; {result.experiment.observed_sample_per_arm:,} "
+                        "synthetic records observed per arm."
+                    ),
+                    html.Details(
+                        [
+                            html.Summary("View evidence table"),
+                            html.Table(
+                                [
+                                    html.Tbody(
+                                        [
+                                            html.Tr([html.Th("Analysis population"), html.Td(result.experiment.analysis_population)]),
+                                            html.Tr([html.Th("ITT effect"), html.Td(f"{result.experiment.itt_effect:.4f}")]),
+                                            html.Tr([html.Th("Confidence level"), html.Td(f"{result.experiment.confidence_level:.0%}")]),
+                                        ]
+                                    )
+                                ]
+                            ),
+                        ]
+                    ),
+                ],
+                className="analysis-record synthetic-lane",
+            ),
         ]
     )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from marketing_measurement.analysis.budget import (
@@ -38,6 +40,10 @@ def test_experiment_uses_balanced_deterministic_intent_to_treat() -> None:
     assert result.confidence_interval[0] <= result.itt_effect <= result.confidence_interval[1]
     assert result.conclusion.startswith("inconclusive")
     assert not result.meets_sample_size_gate
+    assert result.design.baseline_rate == pytest.approx(0.062376)
+    assert result.design.minimum_detectable_effect == pytest.approx(0.015594)
+    assert result.design.planned_sample_per_arm == 4209
+    assert "marginal" in result.design.hypothesis.lower()
 
 
 def test_budget_obeys_total_and_channel_bounds(solution: BudgetScenario) -> None:
@@ -118,9 +124,18 @@ def test_budget_returns_normalized_cent_values() -> None:
         )
     )
     assert result.total_budget == 1.00
-    assert result.minimums.to_dict() == {"channel_aurora": 0.10, "channel_birch": 0.20}
-    assert result.capacities.to_dict() == {"channel_aurora": 0.70, "channel_birch": 0.80}
-    assert result.allocations.to_dict() == {"channel_aurora": 0.70, "channel_birch": 0.30}
+    assert result.minimums.to_dict() == {
+        "channel_aurora": Decimal("0.10"),
+        "channel_birch": Decimal("0.20"),
+    }
+    assert result.capacities.to_dict() == {
+        "channel_aurora": Decimal("0.70"),
+        "channel_birch": Decimal("0.80"),
+    }
+    assert result.allocations.to_dict() == {
+        "channel_aurora": Decimal("0.70"),
+        "channel_birch": Decimal("0.30"),
+    }
 
 
 def test_channel_specific_sensitivity_detects_ranking_crossover_and_allocation_change() -> None:

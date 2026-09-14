@@ -40,6 +40,22 @@ class ArtifactRepository:
             self._load("data/observed/ga4_public_sample/cohort_retention.json"),
         )
 
+    @cached_property
+    def model_evaluation(self) -> dict[str, Any]:
+        return cast(
+            dict[str, Any],
+            self._load("data/derived/ga4_public_sample/conversion_model_evaluation.json"),
+        )
+
+    @cached_property
+    def portfolio_analyses(self) -> list[dict[str, Any]]:
+        return cast(
+            list[dict[str, Any]],
+            self._load(
+                "data/observed/ga4_public_sample/portfolio_decision_aggregates.json"
+            ),
+        )
+
     def _load(self, relative_path: str) -> Any:
         with (self._root / relative_path).open(encoding="utf-8") as artifact:
             return json.load(artifact)

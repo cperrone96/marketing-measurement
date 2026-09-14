@@ -11,6 +11,12 @@ row per session but no raw user, session, transaction, or event identifier. Its 
 uses canonical first-event and final-output tie-breakers, and the retrieval script
 writes gzip bytes with fixed timestamp and empty filename metadata.
 
+The bounded `portfolio_decision_aggregates.sql` query adds aggregate-only landing-page,
+device, product/revenue, and high-value stage-pattern evidence. It was dry-run before
+execution, processed 1,800,578,057 bytes below the 4 GB cap, and returned no user,
+session, event, or transaction identifiers. Its job metadata and both query/result
+hashes are recorded in `portfolio_decision_aggregates_metadata.json`.
+
 ## Export-query provenance
 
 Every retrieval query constrains table suffixes to the documented coverage and uses a

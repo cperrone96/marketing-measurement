@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ DEFAULT_NOTEBOOKS = (
 )
 GENERATED_EVIDENCE = (
     "data/derived/ga4_public_sample/findings_summary.json",
+    "data/derived/ga4_public_sample/conversion_model_evaluation.json",
 )
 
 
@@ -46,6 +48,7 @@ def run_notebook_smoke(root: Path, output_dir: Path) -> None:
     root = root.resolve()
     output_dir = output_dir.resolve()
     verify_release_checksums(root, "before")
+    verify_committed_notebooks_are_clean(root)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="workspace-", dir=output_dir) as temporary:
@@ -85,8 +88,77 @@ def run_notebook_smoke(root: Path, output_dir: Path) -> None:
                 check=True,
             )
         verify_generated_evidence(workspace, root)
+        verify_generated_notebooks(output_dir, root)
 
     verify_release_checksums(root, "after")
+
+
+def normalize_notebook(notebook: dict[str, object]) -> dict[str, object]:
+    """Return notebook structure without volatile execution state."""
+    normalized = json.loads(json.dumps(notebook))
+    cells = normalized.get("cells", [])
+    if isinstance(cells, list):
+        for cell in cells:
+            if isinstance(cell, dict) and cell.get("cell_type") == "code":
+                cell["execution_count"] = None
+                cell["outputs"] = []
+                cell_metadata = cell.get("metadata")
+                if isinstance(cell_metadata, dict):
+                    cell_metadata.pop("execution", None)
+    metadata = normalized.get("metadata")
+    if isinstance(metadata, dict):
+        metadata.pop("widgets", None)
+        language_info = metadata.get("language_info")
+        if isinstance(language_info, dict):
+            language_info.pop("version", None)
+    return normalized
+
+
+def verify_committed_notebooks_are_clean(root: Path) -> None:
+    """Reject committed execution output, which becomes stale evidence silently."""
+    for relative_notebook in DEFAULT_NOTEBOOKS:
+        notebook = json.loads((root / relative_notebook).read_text(encoding="utf-8"))
+        code_cells = [
+            cell for cell in notebook.get("cells", [])
+            if isinstance(cell, dict) and cell.get("cell_type") == "code"
+        ]
+        if any(
+            cell.get("outputs")
+            or cell.get("execution_count") is not None
+            or (
+                isinstance(cell.get("metadata"), dict)
+                and "execution" in cell["metadata"]
+            )
+            for cell in code_cells
+        ):
+            raise EvidenceIntegrityError(
+                f"committed notebook contains stale execution output: {relative_notebook}"
+            )
+
+
+def verify_generated_notebooks(output_dir: Path, canonical_root: Path) -> None:
+    """Require fresh executed notebooks with unchanged source and visible outputs."""
+    for relative_notebook in DEFAULT_NOTEBOOKS:
+        reviewed_path = canonical_root / relative_notebook
+        generated_path = output_dir / Path(relative_notebook).name
+        if not generated_path.is_file():
+            raise EvidenceIntegrityError(
+                f"fresh executed notebook is missing: {generated_path.name}"
+            )
+        reviewed = json.loads(reviewed_path.read_text(encoding="utf-8"))
+        generated = json.loads(generated_path.read_text(encoding="utf-8"))
+        if normalize_notebook(generated) != normalize_notebook(reviewed):
+            raise EvidenceIntegrityError(
+                f"executed notebook source differs from reviewed source: {relative_notebook}"
+            )
+        code_cells = [
+            cell for cell in generated.get("cells", [])
+            if isinstance(cell, dict) and cell.get("cell_type") == "code"
+        ]
+        if not code_cells or any(cell.get("execution_count") is None for cell in code_cells):
+            raise EvidenceIntegrityError(
+                f"fresh notebook was not fully executed: {relative_notebook}"
+            )
 
 
 def prepare_generated_evidence(workspace: Path) -> None:

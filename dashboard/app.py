@@ -137,9 +137,9 @@ def create_app(
         def render_route(pathname: str | None) -> html.Div:
             try:
                 if pathname == "/acquisition":
-                    return acquisition.layout(api.funnel(), api.cohorts())
+                    return acquisition.layout(api.funnel(), api.cohorts(), api.kpis())
                 if pathname == "/journeys":
-                    return journeys.layout(api.funnel(), api.attribution())
+                    return journeys.layout(api.funnel(), api.attribution(), api.kpis())
                 if pathname == "/integration-health":
                     return integration_health.layout(
                         api.audience_quality(), api.integration_health()

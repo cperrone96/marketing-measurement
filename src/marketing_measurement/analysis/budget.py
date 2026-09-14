@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
 
 import pandas as pd
 
 _EVIDENCE_TYPE = "synthetic"
 _CENT = Decimal("0.01")
+MAX_MONEY = Decimal("99999999999999.99")
+MAX_VALUE_MULTIPLIER = Decimal(10)
 type Money = Decimal | int | float | str
 
 
@@ -28,11 +30,11 @@ class BudgetScenario:
     """One deterministic allocation; figures are scenario assumptions, not forecasts."""
 
     allocations: pd.Series
-    total_budget: float
+    total_budget: Decimal
     minimums: pd.Series
     capacities: pd.Series
     expected_incremental_value: pd.Series
-    estimated_incremental_value: float
+    estimated_incremental_value: Decimal
     assumptions: tuple[str, ...]
     evidence_type: str = _EVIDENCE_TYPE
 
@@ -88,13 +90,13 @@ def scenario_sensitivity(inputs: BudgetInputs) -> pd.DataFrame:
             )
 
     rows: list[dict[str, object]] = []
-    allocation_history: dict[str, list[float]] = {
+    allocation_history: dict[str, list[Decimal]] = {
         channel: [] for channel in normalized.channels
     }
     for name, channel, multiplier, scenario, ranking in scenarios:
         allocation_changed = not scenario.allocations.equals(baseline.allocations)
         for allocated_channel, amount in scenario.allocations.items():
-            allocation_history[str(allocated_channel)].append(float(amount))
+            allocation_history[str(allocated_channel)].append(amount)
         rows.append(
             {
                 "scenario": name,
@@ -150,6 +152,15 @@ def _normalize_inputs(inputs: BudgetInputs) -> _NormalizedBudgetInputs:
         )
         for channel in channels
     }
+    if total_cents > int(MAX_MONEY * 100) or any(
+        value > int(MAX_MONEY * 100)
+        for value in (*minimum_cents.values(), *capacity_cents.values())
+    ):
+        raise ValueError(f"money values cannot exceed {MAX_MONEY}")
+    if any(value > MAX_VALUE_MULTIPLIER for value in expected_values.values()):
+        raise ValueError(
+            f"expected incremental value cannot exceed {MAX_VALUE_MULTIPLIER}"
+        )
     if total_cents < 0 or any(value < 0 for value in minimum_cents.values()) or any(
         value < 0 for value in capacity_cents.values()
     ):
@@ -182,24 +193,29 @@ def _optimize_normalized(inputs: _NormalizedBudgetInputs) -> BudgetScenario:
     allocations = _money_series(allocations_cents)
     minimums = _money_series(inputs.minimum_cents)
     capacities = _money_series(inputs.capacity_cents)
-    estimated_value = sum(
-        (
-            (Decimal(allocations_cents[channel]) / 100)
-            * inputs.expected_values[channel]
-            for channel in inputs.channels
-        ),
-        Decimal(0),
-    ).quantize(_CENT, rounding=ROUND_HALF_UP)
+    try:
+        with localcontext() as context:
+            context.prec = 40
+            estimated_value = sum(
+                (
+                    (Decimal(allocations_cents[channel]) / 100)
+                    * inputs.expected_values[channel]
+                    for channel in inputs.channels
+                ),
+                Decimal(0),
+            ).quantize(_CENT, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, OverflowError) as error:
+        raise ValueError("estimated incremental value exceeds supported precision") from error
     return BudgetScenario(
         allocations=allocations,
         total_budget=_from_cents(inputs.total_cents),
         minimums=minimums,
         capacities=capacities,
         expected_incremental_value=pd.Series(
-            {channel: float(inputs.expected_values[channel]) for channel in inputs.channels},
-            dtype=float,
+            {channel: inputs.expected_values[channel] for channel in inputs.channels},
+            dtype=object,
         ),
-        estimated_incremental_value=float(estimated_value),
+        estimated_incremental_value=estimated_value,
         assumptions=(
             "Synthetic scenario only; expected incremental value is an input assumption.",
             "Money inputs are validated as exact whole cents before feasibility checks.",
@@ -233,12 +249,12 @@ def _non_negative_decimal(
 def _money_series(amounts_cents: Mapping[str, int]) -> pd.Series:
     return pd.Series(
         {channel: _from_cents(amount) for channel, amount in amounts_cents.items()},
-        dtype=float,
+        dtype=object,
     )
 
 
-def _from_cents(value: int) -> float:
-    return float(Decimal(value) / 100)
+def _from_cents(value: int) -> Decimal:
+    return (Decimal(value) / 100).quantize(_CENT)
 
 
 def _ranking(values: Mapping[str, Decimal]) -> tuple[str, ...]:

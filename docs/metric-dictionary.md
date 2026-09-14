@@ -35,10 +35,10 @@ sequence. Attribution is always labeled **descriptive attribution; not causal**.
 | Latency SLA rate | Successful deliveries ≤60 minutes | Successful deliveries | Demonstrate delivery latency monitoring | Same |
 | Activation rate | Exposed candidates | Successful deliveries | Demonstrate downstream adoption monitoring | Same |
 | Experiment ITT effect | Treatment conversion rate minus control rate | All 200 randomized synthetic candidates | Demonstrate predeclared A/B analysis | `analysis/experiments.py` |
-| Planned sample gate | Actual candidates per arm | 2,033 required per arm at configured assumptions | Prevent winner claims when underpowered | Same |
+| Planned sample gate | Actual randomized candidates per arm | 4,209 required per arm at the marginal all-randomized ITT assumptions (6.2376% baseline; 1.5594-point effect) | Prevent winner claims when underpowered | Same |
 | Budget allocation | Whole-cent spend per channel | Total equals submitted budget; each channel respects bounds | Demonstrate constrained planning | `analysis/budget.py` |
 | Estimated incremental value | Allocation × user-supplied value assumption | Synthetic scenario only | Compare assumptions, not forecast outcomes | Same |
 
 Default generated values are deterministic for regression testing, but their rates are
 not business benchmarks. The experiment's 100 candidates per arm do not meet the
-2,033-per-arm gate; its result is inconclusive and no arm is declared a winner.
+4,209-per-arm gate; its result is inconclusive and no arm is declared a winner.

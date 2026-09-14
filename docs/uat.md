@@ -14,6 +14,7 @@ distinguishable without relying on color alone.
 | UAT-04 | Dashboard reads only API contracts | `pytest -q tests/dashboard` | No repository/storage imports and all routes render |
 | UAT-05 | Core logic and SQL reconcile | `pytest -q` | All tests pass on redistributable local fixtures/artifacts |
 | UAT-06 | Notebooks execute without cloud credentials, stale outputs, or source mutation | `make notebook-smoke` | Copied generated outputs are removed; both notebooks execute; every output is freshly created and byte-matches reviewed evidence |
+| UAT-07 | Approved decision scope is visible without adding API routes | Inspect Acquisition, Journeys, and Scenarios | Landing/device and product/revenue/high-value journey records are public observed; randomized experiment is visibly synthetic and inconclusive |
 | UAT-07 | Release evidence has not drifted | `make verify-checksums` | Every SHA-256 entry reports `OK` |
 | UAT-08 | Static quality gates pass | `make lint && make typecheck` | Ruff and strict mypy are clean |
 

@@ -243,6 +243,43 @@ def test_decision_pages_expose_chart_alternatives_and_methodology() -> None:
     assert "Synthetic planning demonstration" in _text(pages[3])
 
 
+def test_dashboard_surfaces_approved_analysis_scope_within_five_pages() -> None:
+    kpis = KpisResponse(
+        page=1,
+        page_size=100,
+        total=0,
+        items=[],
+        evidence=_evidence(),
+        analyses=[
+            {
+                "analysis": name,
+                "decision": f"Review {name}",
+                "rows": [{"dimension": "example", "sessions": 10, "revenue": 5.0}],
+                "evidence": _evidence(),
+            }
+            for name in (
+                "landing_page",
+                "device",
+                "product_revenue",
+                "high_value_journey",
+            )
+        ],
+    )
+    acquisition_text = _text(acquisition.layout(_funnel(), _cohorts(), kpis))
+    journeys_text = _text(
+        journeys.layout(
+            _funnel(),
+            AttributionResponse(page=1, page_size=100, total=0, items=[], evidence=_evidence()),
+            kpis,
+        )
+    )
+
+    assert "Landing-page performance" in acquisition_text
+    assert "Device performance" in acquisition_text
+    assert "Product and revenue performance" in journeys_text
+    assert "High-value journeys" in journeys_text
+
+
 def test_empty_and_error_states_are_explicit_and_actionable() -> None:
     empty = acquisition.layout(
         FunnelResponse(
@@ -350,6 +387,18 @@ def test_scenario_result_renders_sensitivity_chart_and_text_alternative() -> Non
             }
         ],
         robustness_summary="One tested assumption changes the preferred allocation.",
+        experiment={
+            "evidence_type": "synthetic",
+            "analysis_population": "all randomized synthetic audience candidates (intent-to-treat)",
+            "baseline_rate": 0.062376,
+            "minimum_detectable_effect": 0.015594,
+            "planned_sample_per_arm": 4209,
+            "observed_sample_per_arm": 100,
+            "itt_effect": 0.01,
+            "confidence_interval": [-0.02, 0.04],
+            "confidence_level": 0.95,
+            "conclusion": "inconclusive synthetic demonstration",
+        },
         evidence=_evidence("synthetic"),
     )
 
@@ -357,7 +406,7 @@ def test_scenario_result_renders_sensitivity_chart_and_text_alternative() -> Non
     assert "Sensitivity decision evidence" in text
     assert "Channel Aurora Down 20Pct" in text
     assert "The preferred allocation changes under this stress test." in text
-    assert text.count("View evidence table") == 2
+    assert text.count("View evidence table") == 3
 
 
 def test_production_client_validates_full_sample_decision_contract() -> None:
@@ -374,9 +423,9 @@ def test_production_client_validates_full_sample_decision_contract() -> None:
                 "decision_summary": {
                     "coverage": "full_filtered_window",
                     "stages": {
-                        "views": 333534,
-                        "engaged_sessions": 250128,
-                        "add_to_carts": 14913,
+                        "views": 333683,
+                        "engaged_sessions": 250206,
+                        "add_to_carts": 14919,
                         "checkouts": 5956,
                         "purchases": 2847,
                     },
@@ -392,7 +441,7 @@ def test_production_client_validates_full_sample_decision_contract() -> None:
     )
 
     response = api.funnel()
-    assert response.decision_summary.stages.views == 333_534
+    assert response.decision_summary.stages.views == 333_683
     assert response.items == []
     attribution = AttributionResponse(
         page=1,
@@ -404,9 +453,9 @@ def test_production_client_validates_full_sample_decision_contract() -> None:
     page = journeys.layout(response, attribution)
     graph = _graph(page, "journey-funnel")
     assert list(graph.figure.data[0].x) == [
-        333_534,
-        250_128,
-        14_913,
+        333_683,
+        250_206,
+        14_919,
         5_956,
         2_847,
     ]

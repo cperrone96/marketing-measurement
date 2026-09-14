@@ -42,12 +42,15 @@ def kpis(page: Page = 1, page_size: PageSize = 100) -> dict[str, object]:
     items, total = paginate(_service.kpis(), page, page_size)
     return {
         "items": items,
+        "analyses": _service.portfolio_analyses(),
         "page": page,
         "page_size": page_size,
         "total": total,
         "evidence": _service.public_evidence(
             "reviewed findings summary",
-            "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
+            _service.artifact_sha256(
+                "data/derived/ga4_public_sample/findings_summary.json"
+            ),
         ),
     }
 
@@ -69,7 +72,9 @@ def funnel(
         "total": total,
         "evidence": _service.public_evidence(
             "reviewed daily funnel aggregate",
-            "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
+            _service.artifact_sha256(
+                "data/observed/ga4_public_sample/funnel_daily_by_channel.json"
+            ),
         ),
     }
 
@@ -91,7 +96,9 @@ def cohorts(
         "total": total,
         "evidence": _service.public_evidence(
             "reviewed cohort retention aggregate",
-            "42cbe7d216b59b899901ff3017493715338910706edd048a50bfd6c0f355e2b7",
+            _service.artifact_sha256(
+                "data/observed/ga4_public_sample/cohort_retention.json"
+            ),
         ),
     }
 
@@ -108,6 +115,8 @@ def attribution(page: Page = 1, page_size: PageSize = 100) -> dict[str, object]:
         "total": total,
         "evidence": _service.public_evidence(
             "reviewed conversion-path aggregate",
-            "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f",
+            _service.artifact_sha256(
+                "data/observed/ga4_public_sample/conversion_channel_paths.json"
+            ),
         ),
     }

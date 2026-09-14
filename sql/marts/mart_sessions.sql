@@ -23,7 +23,17 @@ WITH event_level_records AS (
         ROW_NUMBER() OVER (
             PARTITION BY user_pseudo_id, ga_session_id
             ORDER BY event_timestamp, source_row_id
-        ) AS event_rank
+        ) AS event_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY user_pseudo_id, ga_session_id
+            ORDER BY
+                CASE
+                    WHEN event_source IS NOT NULL AND event_medium IS NOT NULL THEN 0
+                    ELSE 1
+                END,
+                event_timestamp,
+                source_row_id
+        ) AS event_channel_rank
     FROM event_level_records
     WHERE event_item_rank = 1
         AND ga_session_id IS NOT NULL
@@ -34,9 +44,12 @@ WITH event_level_records AS (
         MIN(event_timestamp) AS session_started_event_timestamp,
         MIN(event_date) AS session_date,
         MAX(CASE WHEN event_rank = 1 THEN page_location END) AS landing_page,
-        MAX(CASE WHEN event_rank = 1 THEN traffic_source_source END) AS traffic_source_source,
-        MAX(CASE WHEN event_rank = 1 THEN traffic_source_medium END) AS traffic_source_medium,
-        MAX(CASE WHEN event_rank = 1 THEN traffic_source_campaign END) AS traffic_source_campaign,
+        MAX(CASE WHEN event_channel_rank = 1 THEN event_source END)
+            AS traffic_source_source,
+        MAX(CASE WHEN event_channel_rank = 1 THEN event_medium END)
+            AS traffic_source_medium,
+        MAX(CASE WHEN event_channel_rank = 1 THEN event_campaign END)
+            AS traffic_source_campaign,
         MAX(CASE WHEN event_rank = 1 THEN device_category END) AS device_category,
         MAX(CASE WHEN event_rank = 1 THEN geo_country END) AS geo_country,
         MAX(CASE WHEN event_rank = 1 THEN privacy_info_analytics_storage END)

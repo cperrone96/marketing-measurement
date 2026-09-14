@@ -14,6 +14,7 @@ This register applies to both public observed evidence and synthetic demonstrati
 | API leaks paths, identifiers, submitted values, or traces | Low / High | Typed response models, structured safe errors, aggregate-only artifact repository, contract tests | Add security review before any public production deployment |
 | Dependency ranges resolve differently over time | Medium / Medium | Python 3.12 boundary, CI gates, audited dependency set | Add a reviewed lock file before production deployment |
 | Notebook execution changes tracked evidence | Low / Medium | Checksums run first; copied outputs are deleted in a temporary source copy; notebooks must freshly create byte-matching evidence; checksums run again | Investigate any missing/mismatched output; never repair or overwrite reviewed evidence silently |
+| Portfolio aggregate refresh drifts from reviewed display | Low / Medium | API hashes the committed aggregate artifact; query/result hashes and capped job metadata are recorded | Refresh only through the bounded public-data workflow and review changed decisions |
 | Fixture-only CI misses cloud/source regressions | Medium / Medium | Query text, caps, hashes, and source contracts are tested offline | Run bounded manual retrieval only for an approved source refresh |
 
 No live customer data, advertising accounts, Google Analytics properties, proprietary

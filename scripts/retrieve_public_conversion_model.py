@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import gzip
 import hashlib
 import json
@@ -10,7 +11,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PROJECT_ID = "christina-data-portfolio-2026"
 MAXIMUM_BYTES_BILLED = 4_000_000_000
 ROOT = Path(__file__).resolve().parents[1]
 SQL_PATH = ROOT / "sql" / "bigquery" / "conversion_model_sessions.sql"
@@ -27,9 +27,9 @@ METADATA_PATH = (
 QUERY_NAME = "conversion_model_sessions"
 
 
-def _run_bq(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_bq(project_id: str, arguments: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bq", f"--project_id={PROJECT_ID}", *arguments],
+        ["bq", f"--project_id={project_id}", *arguments],
         check=True,
         text=True,
         capture_output=True,
@@ -93,11 +93,16 @@ def _query_arguments(
 def main() -> None:
     """Dry-run before retrieval, then record separate SQL and result hashes."""
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project-id", required=True)
+    arguments = parser.parse_args()
     sql = SQL_PATH.read_text(encoding="utf-8")
-    dry_run = _run_bq(_query_arguments(sql, dry_run=True))
+    dry_run = _run_bq(arguments.project_id, _query_arguments(sql, dry_run=True))
     job_id = f"marketing_measurement_{QUERY_NAME}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
-    result = _run_bq(_query_arguments(sql, dry_run=False, job_id=job_id))
-    job = _run_bq(["show", "--format=json", "-j", job_id])
+    result = _run_bq(
+        arguments.project_id, _query_arguments(sql, dry_run=False, job_id=job_id)
+    )
+    job = _run_bq(arguments.project_id, ["show", "--format=json", "-j", job_id])
     _write_deterministic_gzip(OUTPUT_PATH, result.stdout)
     metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
     queries = metadata.setdefault("queries", {})

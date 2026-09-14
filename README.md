@@ -5,6 +5,10 @@ GA4 ecommerce sample into governed funnel, cohort, attribution, and conversion-m
 evidence, then demonstrates privacy-conscious integration and budget-planning patterns
 with a visibly separate synthetic dataset.
 
+The dashboard also includes traced public-observed landing-page, device,
+product/revenue, and high-value stage-pattern records. These are descriptive aggregates,
+not causal or current-market evidence.
+
 No customer, Data Design Dynamics, healthcare-patient, or personal-account data is
 used. Public observed evidence and synthetic demonstrations are never combined into
 one claim.
@@ -87,7 +91,9 @@ The integration-health, randomized-experiment, and constrained-budget features u
 only deterministic synthetic records (`seed=20260910`). They demonstrate engineering
 and decision mechanics—not observed campaign performance, live integrations, causal
 lift, or forecasts. The 200-record experiment is intentionally underpowered (100 per
-arm versus 2,033 planned per arm) and therefore declares no winner.
+arm versus 4,209 planned per arm) and therefore declares no winner. The power design
+uses the marginal all-randomized ITT rates implied by consent, match, delivery, and
+exposure assumptions (6.2376% baseline; 1.5594-point minimum detectable effect).
 
 ## Architecture
 
@@ -131,9 +137,11 @@ URL and tag; no URL is invented here.
 
 `make release-gate` verifies reviewed SHA-256 values before any executable step, runs
 Ruff, strict mypy over `src` and `api`, all pytest suites, and both notebooks offline
-inside a temporary source copy after copied generated outputs are removed. Every output
-must be freshly created and byte-identical to the reviewed artifact; checksums are
-verified again afterward, and executed notebooks go to
+inside a temporary source copy after copied generated outputs are removed. Tracked
+notebooks contain no execution output, so stale display cells cannot masquerade as
+reviewed evidence; the gate requires fresh fully executed notebooks with unchanged
+source. Every generated evidence output must be freshly created and byte-identical to
+the reviewed artifact. Checksums are verified again afterward, and executed notebooks go to
 `.artifacts/notebook-smoke/`. The source checkout is never repaired or rewritten.
 
 To run the interfaces in two terminals:

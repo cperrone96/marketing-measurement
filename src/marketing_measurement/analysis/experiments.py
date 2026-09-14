@@ -18,8 +18,9 @@ class ExperimentDesign:
 
     hypothesis: str = (
         "For all randomized synthetic audience candidates, benefit-focused message "
-        "copy increases conversion rate versus plain message copy, regardless of "
-        "downstream consent, matching, delivery, or exposure outcomes."
+        "copy increases the marginal intent-to-treat conversion rate versus plain "
+        "message copy, inclusive of downstream consent, matching, delivery, and "
+        "exposure probabilities."
     )
     variable: str = "message_variant"
     primary_metric: str = "conversion_rate"
@@ -27,8 +28,8 @@ class ExperimentDesign:
     guardrail_metrics: tuple[str, ...] = ("opt_out_rate",)
     alpha: float = 0.05
     target_power: float = 0.80
-    baseline_rate: float = 0.12
-    minimum_detectable_effect: float = 0.03
+    baseline_rate: float = 0.062376
+    minimum_detectable_effect: float = 0.015594
 
     def __post_init__(self) -> None:
         _validate_probability("alpha", self.alpha)

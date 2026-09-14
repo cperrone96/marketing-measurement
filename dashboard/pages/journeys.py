@@ -5,7 +5,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 from dash import html
 
-from api.schemas import AttributionResponse, FunnelResponse
+from api.schemas import AttributionResponse, FunnelResponse, KpisResponse
 from dashboard.components import (
     chart_record,
     decision_header,
@@ -15,7 +15,11 @@ from dashboard.components import (
 )
 
 
-def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div:
+def layout(
+    funnel: FunnelResponse,
+    attribution: AttributionResponse,
+    kpis: KpisResponse | None = None,
+) -> html.Div:
     stages = funnel.decision_summary.stages
     if stages.views == 0:
         return html.Div(
@@ -58,6 +62,7 @@ def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div
         }
         for item in attribution.items
     ]
+    analyses = {item.analysis: item for item in (kpis.analyses if kpis else [])}
     attribution_figure = go.Figure(
         go.Bar(
             x=[row["model"] for row in attribution_rows],
@@ -100,6 +105,19 @@ def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div
                 attribution_rows,
                 chart_id="journey-attribution",
             ),
+            *[
+                _analysis_record(
+                    title,
+                    analyses[name].decision,
+                    [dict(row) for row in analyses[name].rows],
+                    f"journey-{name}",
+                )
+                for name, title in (
+                    ("product_revenue", "Product and revenue performance"),
+                    ("high_value_journey", "High-value journeys"),
+                )
+                if name in analyses
+            ],
             methodology(
                 [
                     html.P(
@@ -112,6 +130,22 @@ def layout(funnel: FunnelResponse, attribution: AttributionResponse) -> html.Div
             ),
         ],
     )
+
+
+def _analysis_record(
+    title: str, decision: str, rows: list[dict[str, object]], chart_id: str
+) -> html.Section:
+    figure = go.Figure(
+        go.Bar(
+            x=[str(row["dimension"]) for row in rows],
+            y=[float(row.get("revenue") or 0) for row in rows],
+            marker_color="#bb6c3f",
+        )
+    )
+    _style(figure, 360)
+    figure.update_layout(yaxis_title="Observed revenue")
+    columns = [(key, key.replace("_", " ").title()) for key in rows[0]] if rows else []
+    return chart_record(title, decision, figure, columns, rows, chart_id=chart_id)
 
 
 def _empty_table() -> html.Details:

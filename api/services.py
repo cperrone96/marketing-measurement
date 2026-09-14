@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from api.repository import ArtifactRepository
@@ -14,6 +14,7 @@ from marketing_measurement.analysis.budget import (
     optimize_budget,
     scenario_sensitivity,
 )
+from marketing_measurement.analysis.experiments import analyze_experiment
 from marketing_measurement.simulation.integration import (
     SYNTHETIC_SEED,
     integration_health,
@@ -75,6 +76,10 @@ class MarketingMeasurementService:
             "limitations": _PUBLIC_LIMITATIONS,
         }
 
+    def artifact_sha256(self, relative_path: str) -> str:
+        """Expose a reviewed-artifact digest without leaking filesystem paths."""
+        return self._repository.source_sha256(relative_path)
+
     def synthetic_evidence(self, generator: str) -> dict[str, Any]:
         artifact, source_artifact = _SYNTHETIC_GENERATORS[generator]
         return {
@@ -118,6 +123,38 @@ class MarketingMeasurementService:
             {"name": "day_7_retention", "values": findings["day_7_retention"]},
         ]
 
+    def portfolio_analyses(self) -> list[dict[str, Any]]:
+        decisions = {
+            "landing_page": "Compare landing-page quality before scaling acquisition.",
+            "device": "Validate mobile journey quality alongside desktop volume.",
+            "product_revenue": "Use revenue and product-view denominators together; do not rank on revenue alone.",
+            "high_value_journey": "Investigate observed stage combinations before proposing a test.",
+        }
+        digest = self._repository.source_sha256(
+            "data/observed/ga4_public_sample/portfolio_decision_aggregates.json"
+        )
+        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for row in self._repository.portfolio_analyses:
+            grouped[str(row["analysis"])].append(
+                {key: value for key, value in row.items() if key != "analysis"}
+            )
+        return [
+            {
+                "analysis": analysis,
+                "decision": decisions[analysis],
+                "rows": grouped[analysis],
+                "evidence": self.public_evidence(
+                    "reviewed portfolio decision aggregates", digest
+                ),
+            }
+            for analysis in (
+                "landing_page",
+                "device",
+                "product_revenue",
+                "high_value_journey",
+            )
+        ]
+
     def funnel(self, start_date: date | None, end_date: date | None) -> list[dict[str, Any]]:
         start, end = self._validate_window(start_date, end_date)
         return [
@@ -134,7 +171,6 @@ class MarketingMeasurementService:
             }
             for row in self._repository.funnel
             if start <= date.fromisoformat(row["session_start_date"]) <= end
-            and ".safeframe." not in row["first_event_source"]
         ]
 
     def funnel_decision_summary(
@@ -255,18 +291,7 @@ class MarketingMeasurementService:
         ]
 
     def conversion_model(self) -> dict[str, Any]:
-        return {
-            "selected_model": "logistic_regression",
-            "evaluation_population": "7,245 held-out identifier-free public-sample sessions",
-            "metrics": {
-                "no_skill_held_out": {"roc_auc": 0.5, "pr_auc": 0.013941, "brier_score": 0.013748},
-                "logistic_regression_training_cv": {"roc_auc": 0.707922, "pr_auc": 0.043843, "brier_score": 0.012284},
-                "logistic_regression_held_out": {"roc_auc": 0.652281, "pr_auc": 0.041429, "brier_score": 0.013582},
-                "random_forest_held_out": {"roc_auc": 0.62904, "pr_auc": 0.040626, "brier_score": 0.08539},
-            },
-            "selected_threshold": 0.035589,
-            "threshold_label": "capacity_50_per_1000_sessions",
-        }
+        return self._repository.model_evaluation
 
     def budget_scenario(
         self,
@@ -293,7 +318,7 @@ class MarketingMeasurementService:
             ) from error
         return {
             "allocations": {
-                name: _money_string(float(amount))
+                name: _money_string(amount)
                 for name, amount in scenario.allocations.items()
             },
             "total_budget": _money_string(scenario.total_budget),
@@ -307,7 +332,7 @@ class MarketingMeasurementService:
                     "varied_channel": str(row.varied_channel),
                     "value_multiplier": float(str(row.value_multiplier)),
                     "estimated_incremental_value": _money_string(
-                        float(str(row.estimated_incremental_value))
+                        Decimal(str(row.estimated_incremental_value))
                     ),
                     "ranking_changed_from_baseline": bool(row.ranking_changed_from_baseline),
                     "allocation_changed_from_baseline": bool(row.allocation_changed_from_baseline),
@@ -316,6 +341,22 @@ class MarketingMeasurementService:
                 for row in sensitivity.itertuples(index=False)
             ],
             "robustness_summary": str(sensitivity.attrs["robustness_summary"]),
+            "experiment": self.experiment_scenario(),
+        }
+
+    def experiment_scenario(self) -> dict[str, Any]:
+        result = analyze_experiment(simulate_integration_records())
+        return {
+            "evidence_type": "synthetic",
+            "analysis_population": result.analysis_population,
+            "baseline_rate": result.design.baseline_rate,
+            "minimum_detectable_effect": result.design.minimum_detectable_effect,
+            "planned_sample_per_arm": result.design.planned_sample_per_arm,
+            "observed_sample_per_arm": min(result.assignment_counts.values()),
+            "itt_effect": result.itt_effect,
+            "confidence_interval": result.confidence_interval,
+            "confidence_level": result.confidence_level,
+            "conclusion": result.conclusion,
         }
 
     def _validate_window(
@@ -362,6 +403,13 @@ class MarketingMeasurementService:
         }
 
 
-def _money_string(value: float) -> str:
+def _money_string(value: Decimal) -> str:
     """Encode a cent-validated Task 6 output at a fixed two-decimal scale."""
-    return format(Decimal(str(value)).quantize(_CENT), "f")
+    try:
+        return format(value.quantize(_CENT), "f")
+    except (InvalidOperation, OverflowError) as error:
+        raise APIValidationError(
+            "invalid_budget_scenario",
+            "Budget scenario is invalid",
+            {"reason": "monetary output exceeds supported precision"},
+        ) from error

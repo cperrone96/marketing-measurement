@@ -32,9 +32,11 @@ SELECT
     ga_session_id,
     page_location,
     page_title,
-    traffic_source_source,
-    traffic_source_medium,
-    traffic_source_name AS traffic_source_campaign,
+    -- GA4 `traffic_source` is first-user acquisition and is intentionally not
+    -- carried into session marts. These event parameters match the public queries.
+    event_source,
+    event_medium,
+    event_campaign,
     device_category,
     geo_country,
     privacy_info_analytics_storage,

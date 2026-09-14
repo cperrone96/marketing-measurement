@@ -1,0 +1,20 @@
+[
+  {"analysis":"device","dimension":"desktop","sessions":193667,"engaged_sessions":145102,"purchases":1605,"revenue":208815.0,"conversion_rate":0.00828742119204614},
+  {"analysis":"device","dimension":"mobile","sessions":132606,"engaged_sessions":99531,"purchases":1180,"revenue":146768.0,"conversion_rate":0.008898541544123192},
+  {"analysis":"device","dimension":"tablet","sessions":7410,"engaged_sessions":5573,"purchases":62,"revenue":6582.0,"conversion_rate":0.008367071524966262},
+  {"analysis":"landing_page","dimension":"/","sessions":153777,"engaged_sessions":127045,"purchases":1687,"revenue":199740.0,"conversion_rate":0.010970431208828369},
+  {"analysis":"landing_page","dimension":"/basket.html","sessions":3295,"engaged_sessions":2335,"purchases":145,"revenue":23955.0,"conversion_rate":0.04400606980273141},
+  {"analysis":"landing_page","dimension":"/Google+Redesign/Shop+by+Brand/Google","sessions":3343,"engaged_sessions":2819,"purchases":124,"revenue":13863.0,"conversion_rate":0.03709243194735268},
+  {"analysis":"landing_page","dimension":"/Google+Redesign/Apparel/Mens","sessions":3884,"engaged_sessions":2790,"purchases":74,"revenue":13720.0,"conversion_rate":0.01905252317198764},
+  {"analysis":"landing_page","dimension":"/Google+Redesign/Apparel","sessions":39247,"engaged_sessions":27428,"purchases":78,"revenue":11963.0,"conversion_rate":0.001987413050679033},
+  {"analysis":"product_revenue","dimension":"Google Zip Hoodie F/C","product_views":49795,"add_to_carts":13011,"purchases":256,"units":273,"revenue":13788.0,"conversion_rate":0.005141078421528266},
+  {"analysis":"product_revenue","dimension":"Google Crewneck Sweatshirt Navy","product_views":32271,"add_to_carts":10631,"purchases":225,"units":236,"revenue":10714.0,"conversion_rate":0.006972204146137399},
+  {"analysis":"product_revenue","dimension":"Google Men's Tech Fleece Grey","product_views":17371,"add_to_carts":5785,"purchases":123,"units":134,"revenue":9965.0,"conversion_rate":0.007080766795233435},
+  {"analysis":"product_revenue","dimension":"Google Badge Heavyweight Pullover Black","product_views":33602,"add_to_carts":10139,"purchases":184,"units":201,"revenue":9712.0,"conversion_rate":0.005475864531873102},
+  {"analysis":"product_revenue","dimension":"Super G Unisex Joggers","product_views":52758,"add_to_carts":12015,"purchases":285,"units":308,"revenue":9529.0,"conversion_rate":0.005402024337541226},
+  {"analysis":"high_value_journey","dimension":"view > engaged > cart > checkout > purchase","sessions":2847,"engaged_sessions":2847,"purchases":2847,"revenue":203935.0,"conversion_rate":1.0},
+  {"analysis":"high_value_journey","dimension":"view > engaged > no_cart > checkout > purchase","sessions":1995,"engaged_sessions":1995,"purchases":1995,"revenue":158208.0,"conversion_rate":1.0},
+  {"analysis":"high_value_journey","dimension":"view > not_engaged > no_cart > checkout > purchase","sessions":2,"engaged_sessions":0,"purchases":2,"revenue":22.0,"conversion_rate":1.0},
+  {"analysis":"high_value_journey","dimension":"view > engaged > cart > checkout > no_purchase","sessions":3109,"engaged_sessions":3109,"purchases":0,"revenue":0.0,"conversion_rate":0.0},
+  {"analysis":"high_value_journey","dimension":"view > engaged > cart > no_checkout > no_purchase","sessions":8963,"engaged_sessions":8963,"purchases":0,"revenue":0.0,"conversion_rate":0.0}
+]

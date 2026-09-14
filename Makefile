@@ -1,4 +1,4 @@
-.PHONY: test lint typecheck notebook-smoke verify-checksums release-gate api dashboard
+.PHONY: test lint typecheck notebook-smoke verify-checksums release-gate ingest api dashboard
 
 PYTHON ?= .venv/bin/python
 NOTEBOOK_OUTPUT_DIR ?= .artifacts/notebook-smoke
@@ -19,6 +19,9 @@ verify-checksums:
 	shasum -a 256 -c docs/release-checksums.sha256
 
 release-gate: verify-checksums lint typecheck test notebook-smoke
+
+ingest:
+	$(PYTHON) scripts/validate_local_fixture.py
 
 api:
 	$(PYTHON) -m uvicorn api.main:app --host 127.0.0.1 --port 8000

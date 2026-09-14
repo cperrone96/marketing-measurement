@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-PROJECT_ID = "christina-data-portfolio-2026"
 MAXIMUM_BYTES_BILLED = 4_000_000_000
 ROOT = Path(__file__).resolve().parents[1]
 SQL_DIRECTORY = ROOT / "sql" / "bigquery"
@@ -21,9 +21,9 @@ QUERY_NAMES = (
 )
 
 
-def _run_bq(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_bq(project_id: str, arguments: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bq", f"--project_id={PROJECT_ID}", *arguments],
+        ["bq", f"--project_id={project_id}", *arguments],
         check=True,
         text=True,
         capture_output=True,
@@ -76,10 +76,13 @@ def _safe_job_metadata(payload: dict[str, object]) -> dict[str, object]:
 
 def main() -> None:
     """Dry-run every query before retrieving its compact aggregate-only result."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project-id", required=True)
+    arguments = parser.parse_args()
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     retrieved_at = datetime.now(UTC).isoformat()
     metadata: dict[str, object] = {
-        "project_id": PROJECT_ID,
+        "project_id": arguments.project_id,
         "maximum_bytes_billed": MAXIMUM_BYTES_BILLED,
         "retrieved_at_utc": retrieved_at,
         "queries": {},
@@ -87,10 +90,12 @@ def main() -> None:
     for name in QUERY_NAMES:
         sql_path = SQL_DIRECTORY / f"{name}.sql"
         sql = sql_path.read_text(encoding="utf-8")
-        dry_run = _run_bq(_query_arguments(sql, dry_run=True))
+        dry_run = _run_bq(arguments.project_id, _query_arguments(sql, dry_run=True))
         job_id = f"marketing_measurement_{name}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
-        result = _run_bq(_query_arguments(sql, dry_run=False, job_id=job_id))
-        job = _run_bq(["show", "--format=json", "-j", job_id])
+        result = _run_bq(
+            arguments.project_id, _query_arguments(sql, dry_run=False, job_id=job_id)
+        )
+        job = _run_bq(arguments.project_id, ["show", "--format=json", "-j", job_id])
         output_path = OUTPUT_DIRECTORY / f"{name}.json"
         output_path.write_text(result.stdout, encoding="utf-8")
         metadata["queries"][name] = {

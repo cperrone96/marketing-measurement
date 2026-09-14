@@ -9,6 +9,16 @@ All budget-scenario monetary outputs use fixed two-decimal strings, including
 scenario's `estimated_incremental_value`. For example, an allocation is returned as
 `"0.70"`, never `0.7`. Inputs continue to accept JSON numbers or decimal strings
 and are validated by the Task 6 whole-cent optimizer.
+Money inputs are limited to 99,999,999,999,999.99 with at most two decimal places;
+expected-value multipliers are finite, non-negative, capped at 10, and limited to six
+decimal places. Decimal/integer-cent representation is preserved end to end. Values
+outside those bounds, non-finite values, overflow, and precision failures return the
+same structured 422 contract.
+
+`GET /api/v1/kpis` also publishes typed, public-observed analysis sections for landing
+pages, devices, product/revenue performance, and high-value journey patterns. The
+existing `POST /api/v1/scenarios/budget` response includes the separately labelled
+synthetic randomized-experiment scenario; the API surface remains exactly ten routes.
 
 ## Paginated detail and decision summaries
 

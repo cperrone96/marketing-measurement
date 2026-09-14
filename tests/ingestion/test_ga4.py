@@ -77,6 +77,23 @@ def test_ga4_contract_normalizes_nested_fields_without_defaulting_missing_values
     assert pd.isna(second["ecommerce_purchase_revenue"])
 
 
+def test_ga4_contract_flattens_event_scoped_acquisition_parameters(
+    ga4_fixture: pd.DataFrame,
+) -> None:
+    ga4_fixture.at[0, "event_params"] = [
+        {"key": "ga_session_id", "value": {"int_value": "1001"}},
+        {"key": "source", "value": {"string_value": "event-source"}},
+        {"key": "medium", "value": {"string_value": "event-medium"}},
+        {"key": "campaign", "value": {"string_value": "event-campaign"}},
+    ]
+
+    valid = validate_ga4_events(ga4_fixture).valid.iloc[0]
+
+    assert valid["event_source"] == "event-source"
+    assert valid["event_medium"] == "event-medium"
+    assert valid["event_campaign"] == "event-campaign"
+
+
 def test_ga4_contract_assigns_one_deterministic_primary_reason(
     ga4_fixture: pd.DataFrame,
 ) -> None:

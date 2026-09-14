@@ -104,6 +104,14 @@ def _normalize_ga4_events(frame: pd.DataFrame) -> pd.DataFrame:
             normalized[column] = None
 
     normalized["event_params"] = normalized["event_params"].map(_normalize_event_params)
+    for parameter, column in (
+        ("source", "event_source"),
+        ("medium", "event_medium"),
+        ("campaign", "event_campaign"),
+    ):
+        normalized[column] = normalized["event_params"].map(
+            _extract_nested_value_for_key(parameter)
+        )
     normalized["items"] = normalized["items"].map(_normalize_items)
     for field in ("traffic_source", "device", "geo", "privacy_info"):
         normalized[field] = normalized[field].map(

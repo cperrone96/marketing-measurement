@@ -8,6 +8,12 @@ def test_settings_use_safe_local_defaults(tmp_path):
     assert "password" not in settings.model_dump_json().lower()
 
 
+def test_unprefixed_database_url_is_ignored(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://should-not-load")
+    settings = Settings(data_dir=tmp_path)
+    assert settings.database_url.startswith("duckdb:///")
+
+
 def test_settings_default_database_url():
     assert Settings().database_url == "duckdb:///data/local/marketing.duckdb"
 

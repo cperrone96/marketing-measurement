@@ -5,7 +5,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 from dash import html
 
-from api.schemas import CohortsResponse, FunnelResponse
+from api.schemas import CohortsResponse, FunnelResponse, KpisResponse
 from dashboard.components import (
     chart_record,
     decision_header,
@@ -15,9 +15,12 @@ from dashboard.components import (
 )
 
 
-def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
+def layout(
+    funnel: FunnelResponse, cohorts: CohortsResponse, kpis: KpisResponse | None = None
+) -> html.Div:
     channel_rows = [item.model_dump() for item in funnel.decision_summary.channels]
     cohort_rows = [item.model_dump() for item in cohorts.decision_summary.items]
+    analyses = {item.analysis: item for item in (kpis.analyses if kpis else [])}
     if not channel_rows and not cohort_rows:
         return html.Div(
             [
@@ -94,6 +97,19 @@ def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
                 cohort_rows,
                 chart_id="acquisition-cohorts",
             ),
+            *[
+                _analysis_record(
+                    title,
+                    analyses[name].decision,
+                    [dict(row) for row in analyses[name].rows],
+                    f"acquisition-{name}",
+                )
+                for name, title in (
+                    ("landing_page", "Landing-page performance"),
+                    ("device", "Device performance"),
+                )
+                if name in analyses
+            ],
             methodology(
                 [
                     html.P(
@@ -109,6 +125,21 @@ def layout(funnel: FunnelResponse, cohorts: CohortsResponse) -> html.Div:
             ),
         ],
     )
+
+
+def _analysis_record(
+    title: str, decision: str, rows: list[dict[str, object]], chart_id: str
+) -> html.Section:
+    figure = go.Figure(
+        go.Bar(
+            x=[str(row["dimension"]) for row in rows],
+            y=[int(row.get("sessions") or 0) for row in rows],
+            marker_color="#347568",
+        )
+    )
+    _style(figure, title)
+    columns = [(key, key.replace("_", " ").title()) for key in rows[0]] if rows else []
+    return chart_record(title, decision, figure, columns, rows, chart_id=chart_id)
 
 
 def _empty_table() -> html.Details:

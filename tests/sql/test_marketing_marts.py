@@ -78,7 +78,7 @@ def db(request: pytest.FixtureRequest) -> Generator[Database, None, None]:
         _create_synthetic_integration_fixture(database)
         _seed_validated_fixture(database)
         if all(path.exists() for path in SQL_FILES):
-            for path in SQL_FILES[1:]:
+            for path in SQL_FILES:
                 database.sql(path.read_text(encoding="utf-8"))
         yield database
     finally:
@@ -194,6 +194,9 @@ def _create_raw_contract(database: Database) -> None:
             traffic_source_source VARCHAR,
             traffic_source_medium VARCHAR,
             traffic_source_name VARCHAR,
+            event_source VARCHAR,
+            event_medium VARCHAR,
+            event_campaign VARCHAR,
             device_category VARCHAR,
             geo_country VARCHAR,
             privacy_info_analytics_storage VARCHAR,
@@ -254,7 +257,23 @@ def _seed_validated_fixture(database: Database) -> None:
     source = load_ga4_export(fixture_path)
     additions = pd.DataFrame(
         [
-            _event("page_view", 1609455600000000, "fixture-user-001", 1001, page_location="/"),
+            _event(
+                "page_view",
+                1609455600000000,
+                "fixture-user-001",
+                1001,
+                page_location="/",
+                source="event-google",
+                medium="event-cpc",
+                campaign="launch",
+            ),
+            _event(
+                "view_item",
+                1609456500000000,
+                "fixture-user-001",
+                1001,
+                item_id="sku-001",
+            ),
             _event("user_engagement", 1609457400000000, "fixture-user-001", 1001, engagement_time_msec=12000),
             _event("add_to_cart", 1609458300000000, "fixture-user-001", 1001, item_id="sku-001", item_quantity=1),
             _event("begin_checkout", 1609458600000000, "fixture-user-001", 1001),
@@ -278,7 +297,7 @@ def _seed_validated_fixture(database: Database) -> None:
     additions.insert(0, "source_row_id", range(len(source), len(source) + len(additions)))
     frame = pd.concat([source, additions], ignore_index=True, sort=False)
     report = validate_ga4_events(frame)
-    assert report.valid_count == 10
+    assert report.valid_count == 11
     assert report.quarantine_count == 1
 
     event_rows = [
@@ -288,7 +307,7 @@ def _seed_validated_fixture(database: Database) -> None:
     ]
     placeholders = "?" if database.engine == "duckdb" else "%s"
     database.executemany(
-        f"INSERT INTO raw_public.ga4_events VALUES ({', '.join([placeholders] * 22)})",
+        f"INSERT INTO raw_public.ga4_events VALUES ({', '.join([placeholders] * 25)})",
         event_rows,
     )
     quarantine_rows = [
@@ -320,6 +339,11 @@ def _event(
                 "value": {"int_value": str(fields["engagement_time_msec"])},
             }
         )
+    for key in ("source", "medium", "campaign"):
+        if key in fields:
+            parameters.append(
+                {"key": key, "value": {"string_value": fields[key]}}
+            )
     ecommerce: dict[str, Any] = {}
     if "purchase_revenue" in fields:
         ecommerce["purchase_revenue"] = fields["purchase_revenue"]
@@ -362,6 +386,9 @@ def _raw_rows(row: dict[str, Any]) -> list[tuple[Any, ...]]:
                 row.get("traffic_source_source"),
                 row.get("traffic_source_medium"),
                 row.get("traffic_source_name"),
+                params.get("source"),
+                params.get("medium"),
+                params.get("campaign"),
                 row.get("device_category"),
                 row.get("geo_country"),
                 row.get("privacy_info_analytics_storage"),
@@ -394,6 +421,16 @@ def test_funnel_is_monotonic(db: Database) -> None:
     assert row[0] >= row[1] >= row[2] >= row[3] >= row[4]
 
 
+def test_namespace_ddl_creates_all_expected_schemas(db: Database) -> None:
+    for namespace in ("raw_public", "staging", "analytics", "synthetic"):
+        assert db.sql(
+            "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = ?"
+            if db.engine == "duckdb"
+            else "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = %s",
+            [namespace],
+        ).fetchone()[0] == 1
+
+
 def test_session_revenue_reconciles_to_events(db: Database) -> None:
     event_total = db.sql("SELECT SUM(purchase_revenue) FROM staging.stg_ga4_events").fetchone()[0]
     mart_total = db.sql("SELECT SUM(revenue) FROM analytics.mart_sessions").fetchone()[0]
@@ -401,9 +438,17 @@ def test_session_revenue_reconciles_to_events(db: Database) -> None:
     assert mart_total == event_total
 
 
+def test_session_channel_uses_event_scope_not_first_user_traffic_source(db: Database) -> None:
+    row = db.sql(
+        "SELECT traffic_source_source, traffic_source_medium, traffic_source_campaign "
+        "FROM analytics.mart_sessions WHERE user_pseudo_id = 'fixture-user-001'"
+    ).fetchone()
+    assert row == ("event-google", "event-cpc", "launch")
+
+
 def test_quarantined_and_duplicate_rows_do_not_reach_marts(db: Database) -> None:
     assert db.sql("SELECT COUNT(*) FROM raw_public.ga4_events_quarantine").fetchone()[0] == 1
-    assert db.sql("SELECT COUNT(*) FROM staging.stg_ga4_events").fetchone()[0] == 9
+    assert db.sql("SELECT COUNT(*) FROM staging.stg_ga4_events").fetchone()[0] == 10
     assert db.sql("SELECT SUM(purchases) FROM analytics.mart_funnel_total").fetchone()[0] == 1
 
 
@@ -495,14 +540,24 @@ def test_two_item_purchase_reconciles_without_session_or_funnel_inflation(db: Da
         "SELECT SUM(units), SUM(revenue) FROM analytics.mart_products"
     ).fetchone()
     assert staged_items == [
-        (6, 0, "sku-002", 1.0, 10.0, 30.0),
-        (6, 1, "sku-003", 2.0, 20.0, None),
+        (7, 0, "sku-002", 1.0, 10.0, 30.0),
+        (7, 1, "sku-003", 2.0, 20.0, None),
     ]
     assert staged_event == (1, 30.0)
-    assert session == (6, 2, 69.0)
+    assert session == (7, 2, 69.0)
     assert funnel == (2, 1, 69.0)
     assert products == [("sku-002", 1.0, 10.0, 1), ("sku-003", 2.0, 20.0, 1)]
     assert product_totals == (6.0, 69.0)
+
+
+def test_product_rates_use_view_item_as_the_view_denominator(db: Database) -> None:
+    row = db.sql(
+        "SELECT product_views, add_to_carts, purchases, purchase_rate_numerator, "
+        "purchase_rate_denominator, purchase_rate FROM analytics.mart_products "
+        "WHERE item_id = 'sku-001'"
+    ).fetchone()
+    assert row[:5] == (1, 1, 1, 1, 1)
+    assert float(row[5]) == pytest.approx(1.0)
 
 
 def test_cohort_mart_reconciles_measured_session_users(db: Database) -> None:

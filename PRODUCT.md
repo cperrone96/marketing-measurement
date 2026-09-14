@@ -25,7 +25,7 @@ The product connects a public, obfuscated GA4 evidence base to clearly separated
 
 ## Operating Context
 
-The workspace is used as a portfolio artifact during recruiting and as an executive-style review surface. It supports five recurring views: summary, acquisition, journeys, integration health, and budget scenarios. Reviewers may use it on desktop or mobile and may need accessible table alternatives to visual charts.
+The workspace is used as a portfolio artifact during recruiting and as an executive-style review surface. It supports five recurring views: summary, acquisition (including landing page and device), journeys (including product/revenue and high-value patterns), integration health, and scenarios (experiment plus budget). Reviewers may use it on desktop or mobile and may need accessible table alternatives to visual charts.
 
 ## Capabilities and Constraints
 
@@ -40,7 +40,8 @@ The workspace is used as a portfolio artifact during recruiting and as an execut
 ## Evidence on Hand
 
 - Google public obfuscated GA4 ecommerce aggregates and deterministic derived findings under `data/observed/ga4_public_sample/` and `data/derived/ga4_public_sample/`.
-- Deterministic synthetic audience, consent, partner-delivery, experiment, and budget-scenario outputs exposed through the public API contracts.
+- Deterministic synthetic audience, consent, partner-delivery, experiment, and budget-scenario outputs exposed through the existing scenario and integration API contracts.
+- Reviewed aggregate landing-page, device, product/revenue, and high-value-journey analyses from the public sample, with query and result provenance.
 - Reviewed model metrics and model card under `docs/models/conversion-model-card.md`.
 - No real customer records, campaign performance, proprietary methods, testimonials, or commercial claims are available and none may be fabricated.
 

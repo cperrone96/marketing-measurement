@@ -285,6 +285,25 @@ def test_ci_runs_offline_quality_gates_and_notebook_smoke() -> None:
     assert "bigquery" not in commands.lower()
 
 
+def test_notebook_smoke_compares_fresh_executed_notebooks_to_reviewed_outputs() -> None:
+    smoke = (ROOT / "scripts/smoke_notebooks.py").read_text(encoding="utf-8")
+    assert "verify_generated_notebooks" in smoke
+    assert "normalize_notebook" in smoke
+
+
+def test_postgres_port_is_localhost_only_and_not_trust_authenticated() -> None:
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert '"127.0.0.1:5432:5432"' in compose
+    assert "POSTGRES_HOST_AUTH_METHOD: trust" not in compose
+
+
+def test_runtime_has_real_ingest_command_and_configurable_billing_project() -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    retrieval = (ROOT / "scripts/retrieve_public_aggregates.py").read_text(encoding="utf-8")
+    assert "ingest:" in makefile
+    assert "--project-id" in retrieval
+
+
 def _model_card_value(model_card: str, row_label: str, column: str) -> str:
     header = next(line for line in model_card.splitlines() if "| ROC-AUC | PR-AUC |" in line)
     columns = [value.strip() for value in header.strip("|").split("|")]

@@ -3,9 +3,22 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+Money = Annotated[
+    Decimal,
+    Field(
+        ge=0,
+        le=Decimal("99999999999999.99"),
+        max_digits=16,
+        decimal_places=2,
+    ),
+]
+Multiplier = Annotated[
+    Decimal, Field(ge=0, le=10, max_digits=8, decimal_places=6)
+]
 
 
 class APIModel(BaseModel):
@@ -60,8 +73,18 @@ class KpiItem(APIModel):
     values: dict[str, int | float | str]
 
 
+class AnalysisSection(APIModel):
+    analysis: Literal[
+        "landing_page", "device", "product_revenue", "high_value_journey"
+    ]
+    decision: str
+    rows: list[dict[str, str | int | float | None]]
+    evidence: Evidence
+
+
 class KpisResponse(Pagination):
     items: list[KpiItem]
+    analyses: list[AnalysisSection] = Field(default_factory=list)
     evidence: Evidence
 
 
@@ -179,10 +202,16 @@ class ConversionModelResponse(APIModel):
 
 
 class BudgetScenarioRequest(APIModel):
-    total_budget: Decimal
-    minimums: dict[str, Decimal] = Field(min_length=1)
-    capacities: dict[str, Decimal] = Field(min_length=1)
-    expected_incremental_value: dict[str, Decimal] = Field(min_length=1)
+    """Bounded exact-decimal scenario inputs.
+
+    Money supports at most fourteen integer digits and exactly whole-cent precision.
+    Expected-value multipliers are finite, non-negative, and capped at 10.
+    """
+
+    total_budget: Money
+    minimums: dict[str, Money] = Field(min_length=1)
+    capacities: dict[str, Money] = Field(min_length=1)
+    expected_incremental_value: dict[str, Multiplier] = Field(min_length=1)
 
 
 class BudgetSensitivityItem(APIModel):
@@ -195,6 +224,19 @@ class BudgetSensitivityItem(APIModel):
     decision_summary: str
 
 
+class ExperimentScenario(APIModel):
+    evidence_type: Literal["synthetic"]
+    analysis_population: str
+    baseline_rate: float = Field(ge=0, le=1)
+    minimum_detectable_effect: float = Field(gt=0, lt=1)
+    planned_sample_per_arm: int = Field(gt=0)
+    observed_sample_per_arm: int = Field(ge=0)
+    itt_effect: float
+    confidence_interval: tuple[float, float]
+    confidence_level: float = Field(gt=0, lt=1)
+    conclusion: str
+
+
 class BudgetScenarioResponse(APIModel):
     """Money is always a two-decimal string; never an ambiguous JSON float."""
 
@@ -204,4 +246,5 @@ class BudgetScenarioResponse(APIModel):
     assumptions: list[str]
     sensitivity: list[BudgetSensitivityItem]
     robustness_summary: str
+    experiment: ExperimentScenario
     evidence: Evidence

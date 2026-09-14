@@ -123,13 +123,24 @@ def test_funnel_decision_summary_covers_full_window_on_every_page(
     assert first.json()["decision_summary"] == second.json()["decision_summary"]
     assert first.json()["decision_summary"]["coverage"] == "full_filtered_window"
     assert first.json()["decision_summary"]["stages"] == {
-        "views": 333_534,
-        "engaged_sessions": 250_128,
-        "add_to_carts": 14_913,
+        "views": 333_683,
+        "engaged_sessions": 250_206,
+        "add_to_carts": 14_919,
         "checkouts": 5_956,
         "purchases": 2_847,
     }
     assert first.json()["decision_summary"]["channels"]
+
+
+def test_kpis_and_funnel_publish_one_full_window_truth(client: APIClient) -> None:
+    kpis = client.get("/api/v1/kpis").json()
+    funnel = client.get("/api/v1/funnel?page_size=1").json()
+    by_name = {item["name"]: item["values"] for item in kpis["items"]}
+
+    assert funnel["decision_summary"]["stages"] == {
+        key: by_name["funnel"][key]
+        for key in ("views", "engaged_sessions", "add_to_carts", "checkouts", "purchases")
+    }
 
 
 def test_cohort_decision_summary_covers_all_complete_day_7_cohorts_on_every_page(
@@ -278,6 +289,39 @@ def test_budget_accepts_exact_minimum_and_capacity_boundaries(client: APIClient)
     }
 
 
+def test_budget_preserves_extreme_valid_cents_exactly(client: APIClient) -> None:
+    amount = "90071992547409.93"
+    response = client.post(
+        "/api/v1/scenarios/budget",
+        json={
+            "total_budget": amount,
+            "minimums": {"channel_aurora": amount},
+            "capacities": {"channel_aurora": amount},
+            "expected_incremental_value": {"channel_aurora": "1.00"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total_budget"] == amount
+    assert response.json()["allocations"] == {"channel_aurora": amount}
+    assert response.json()["estimated_incremental_value"] == amount
+
+
+def test_budget_extreme_exponent_is_a_structured_422(client: APIClient) -> None:
+    response = client.post(
+        "/api/v1/scenarios/budget",
+        json={
+            "total_budget": "1e10000",
+            "minimums": {"channel_aurora": "0.00"},
+            "capacities": {"channel_aurora": "1e10000"},
+            "expected_incremental_value": {"channel_aurora": "1.00"},
+        },
+    )
+
+    assert response.status_code == 422
+    assert set(response.json()) == {"code", "message", "details"}
+
+
 @pytest.mark.parametrize(
     ("method", "path", "code", "message"),
     [
@@ -330,3 +374,67 @@ def test_synthetic_provenance_changes_when_its_generator_artifact_changes(
     second = service.synthetic_evidence("integration")
 
     assert first["provenance"]["sha256"] != second["provenance"]["sha256"]
+
+
+def test_public_kpi_provenance_authenticates_the_returned_summary(client: APIClient) -> None:
+    expected = hashlib.sha256(
+        Path("data/derived/ga4_public_sample/findings_summary.json").read_bytes()
+    ).hexdigest()
+    response = client.get("/api/v1/kpis")
+
+    assert response.json()["evidence"]["provenance"] == {
+        "artifact": "reviewed findings summary",
+        "sha256": expected,
+    }
+
+
+def test_kpis_expose_reviewed_landing_device_product_revenue_and_journey_analysis(
+    client: APIClient,
+) -> None:
+    response = client.get("/api/v1/kpis")
+    sections = {item["analysis"]: item for item in response.json()["analyses"]}
+
+    assert set(sections) == {
+        "landing_page",
+        "device",
+        "product_revenue",
+        "high_value_journey",
+    }
+    assert all(item["evidence"]["evidence_type"] == "public_observed" for item in sections.values())
+    assert all(item["rows"] for item in sections.values())
+    assert all(item["decision"] for item in sections.values())
+
+
+def test_budget_response_includes_aligned_synthetic_experiment_scenario(
+    client: APIClient,
+) -> None:
+    response = client.post(
+        "/api/v1/scenarios/budget",
+        json={
+            "total_budget": "100.00",
+            "minimums": {"channel_aurora": "0.00"},
+            "capacities": {"channel_aurora": "100.00"},
+            "expected_incremental_value": {"channel_aurora": "1.00"},
+        },
+    )
+    experiment = response.json()["experiment"]
+
+    assert experiment["evidence_type"] == "synthetic"
+    assert experiment["planned_sample_per_arm"] == 4209
+    assert experiment["analysis_population"].startswith("all randomized")
+    assert experiment["conclusion"].startswith("inconclusive")
+
+
+def test_model_response_is_loaded_from_and_hashes_reviewed_output(client: APIClient) -> None:
+    artifact = Path("data/derived/ga4_public_sample/conversion_model_evaluation.json")
+    expected_payload = __import__("json").loads(artifact.read_text(encoding="utf-8"))
+    response = client.get("/api/v1/models/conversion")
+
+    assert response.status_code == 200
+    assert {
+        key: response.json()[key] for key in expected_payload
+    } == expected_payload
+    assert response.json()["evidence"]["provenance"] == {
+        "artifact": "reviewed conversion model evaluation",
+        "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+    }
