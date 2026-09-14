@@ -5,12 +5,12 @@
     "coverage_start": "2020-11-01",
     "coverage_end": "2021-01-31",
     "retrieval": {
-      "status": "retrieved_compact_aggregate_and_identifier_free_session_sample",
-      "retrieved_at_utc": "2026-09-11T14:18:59.511371+00:00",
+      "status": "retrieved_observed_aggregates_and_identifier_free_session_model_data",
+      "retrieved_at_utc": "2026-09-11T14:32:58.431586+00:00",
       "project_id": "christina-data-portfolio-2026",
       "maximum_bytes_billed_per_query": 4000000000,
       "metadata_path": "data/observed/ga4_public_sample/retrieval_metadata.json",
-      "scope": "Four compact aggregate-only public-data results plus one identifier-free, deterministic 10% user-level session sample for educational conversion-model evaluation; no raw event-level records or unique identifiers were downloaded or committed."
+      "scope": "Four aggregate observed public-data results plus one separately categorized identifier-free, deterministic 10% user-level session-model result for educational conversion-model evaluation; no raw event-level records or unique identifiers were downloaded or committed."
     },
     "query_provenance": [
       "sql/bigquery/event_parameter_availability.sql",
@@ -21,12 +21,12 @@
     ]
   },
   "checksums": {
-    "source_public_data_snapshot": {
+    "source_public_data_retrieval_metadata": {
       "algorithm": "sha256",
-      "value": "c7b3ac63505d91e7559e6a37a68aeea840331483a4d742a024d7e96e75d359ee",
+      "value": "336991d07a133a1c67610eb661aa70edddcb4d923af9851e3168f1b053ead24e",
       "path": "data/observed/ga4_public_sample/retrieval_metadata.json",
-      "status": "aggregate_only",
-      "scope": "Observed Google public-sample retrieval metadata and checksums for aggregate-only outputs; not a raw event snapshot."
+      "status": "retrieval_metadata",
+      "scope": "Observed Google public-sample query, job, and result hashes for both aggregate outputs and separately categorized identifier-free session-model data; not a raw event snapshot."
     },
     "observed_aggregate_outputs": {
       "algorithm": "sha256",
@@ -34,9 +34,15 @@
         "data/observed/ga4_public_sample/event_parameter_availability.json": "2beb075c9fc57f7178ea6c89f0f6df6edc0e594f360ea4b33e06d761fd353574",
         "data/observed/ga4_public_sample/funnel_daily_by_channel.json": "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
         "data/observed/ga4_public_sample/cohort_retention.json": "42cbe7d216b59b899901ff3017493715338910706edd048a50bfd6c0f355e2b7",
-        "data/observed/ga4_public_sample/conversion_channel_paths.json": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f",
-        "data/observed/ga4_public_sample/conversion_model_sessions.json.gz": "6d71b626f7734f261b217489e91d12af95a592955b3eb091542eb5c392b9a6b6"
+        "data/observed/ga4_public_sample/conversion_channel_paths.json": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f"
       }
+    },
+    "observed_identifier_free_session_model_data": {
+      "algorithm": "sha256",
+      "files": {
+        "data/observed/ga4_public_sample/conversion_model_sessions.json.gz": "cf828e20761a596a0ca1a7f2568dd808792367137ba7bd0a6a3bfc946dfccf9c"
+      },
+      "scope": "One-row-per-session observed public-data model input with a non-unique split bucket; no raw user, session, event, or transaction identifier."
     },
     "synthetic_test_fixture": {
       "algorithm": "sha256",
@@ -47,7 +53,7 @@
   },
   "limitations": [
     "The fixture validates schema handling only and must not be used to infer public-source distributions or outcomes.",
-    "Observed findings are computed only from the compact public aggregate outputs, never from the synthetic fixture.",
+    "Aggregate findings are computed from compact observed aggregate outputs, while the conversion model is computed only from the separately categorized identifier-free session-model output; neither uses the synthetic fixture.",
     "The public sample is obfuscated; aggregate paths omit user, session, transaction, and hashed identifiers."
   ]
 }

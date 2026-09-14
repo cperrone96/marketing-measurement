@@ -37,7 +37,16 @@ WITH sampled_events AS (
         event_medium,
         event_campaign
       )
-      ORDER BY event_timestamp
+      /* Canonical first-event selection, including deterministic timestamp ties. */
+      ORDER BY
+        event_timestamp,
+        event_name,
+        COALESCE(device_category, ''),
+        COALESCE(country, ''),
+        COALESCE(ga_session_number, -1),
+        COALESCE(event_source, ''),
+        COALESCE(event_medium, ''),
+        COALESCE(event_campaign, '')
       LIMIT 1
     )[SAFE_OFFSET(0)] AS start_context,
     LOGICAL_OR(event_name = 'purchase') AS converted
@@ -69,4 +78,16 @@ SELECT
   MOD(ABS(FARM_FINGERPRINT(user_pseudo_id)), 10000) AS user_group_bucket,
   converted
 FROM sessions
-ORDER BY session_start_date, user_group_bucket;
+/* Canonical output ordering. Identical visible rows need no hidden-ID tie-breaker. */
+ORDER BY
+  session_start_date,
+  session_start_hour,
+  session_start_day_of_week,
+  device_category,
+  country_group,
+  new_returning_status,
+  session_source,
+  session_medium,
+  session_campaign,
+  user_group_bucket,
+  converted;

@@ -28,6 +28,7 @@ from sklearn.metrics import (  # type: ignore[import-untyped]
 from sklearn.model_selection import (  # type: ignore[import-untyped]
     GroupKFold,
     GroupShuffleSplit,
+    cross_val_predict,
     cross_validate,
 )
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
@@ -38,17 +39,18 @@ HOLDOUT_FRACTION = 0.20
 OUTREACH_CAPACITY_PER_1000 = 50
 DATE_COLUMN = "session_start_date"
 GROUP_COLUMN = "user_group_bucket"
-LEAKAGE_TERMS = (
-    "purchase",
-    "revenue",
-    "transaction",
-    "cart",
-    "checkout",
-    "engagement",
-    "session_duration",
-    "page_view",
-    "conversion",
-    "outcome",
+APPROVED_MODEL_FEATURES = (
+    "session_start_hour",
+    "session_start_day_of_week",
+    "device_category",
+    "country_group",
+    "new_returning_status",
+    "session_source",
+    "session_medium",
+    "session_campaign",
+)
+APPROVED_INPUT_COLUMNS = frozenset(
+    (*APPROVED_MODEL_FEATURES, DATE_COLUMN, GROUP_COLUMN)
 )
 
 
@@ -74,6 +76,7 @@ class ModelBundle:
     feature_columns: tuple[str, ...]
     training_prevalence: float
     cv_scores: Mapping[str, Mapping[str, float]]
+    selected_threshold: float
     test: HeldOutData
     split_metadata: Mapping[str, Any]
 
@@ -100,31 +103,20 @@ def build_feature_matrix(
 ) -> pd.DataFrame:
     """Return only approved pre-outcome model inputs.
 
-    ``session_start_date`` and ``user_group_bucket`` are retained by callers only for
-    splitting and reporting; neither can enter a model pipeline.
+    This is an exact allowlist, not a substring blacklist. ``session_start_date`` and
+    ``user_group_bucket`` are split/provenance fields and cannot enter a model.
     """
 
-    forbidden = [
-        column
-        for column in feature_columns
-        if any(term in column.lower() for term in LEAKAGE_TERMS)
-    ]
-    if forbidden:
+    unexpected = sorted(set(feature_columns).difference(APPROVED_MODEL_FEATURES))
+    if unexpected:
         raise LeakageError(
-            "Post-conversion or behavior-derived feature(s) are not allowed: "
-            + ", ".join(forbidden)
+            "Feature(s) are not on the approved pre-outcome allowlist: "
+            + ", ".join(unexpected)
         )
     missing = sorted(set(feature_columns).difference(frame.columns))
     if missing:
         raise ValueError(f"Feature column(s) are missing: {', '.join(missing)}")
-    model_columns = [
-        column
-        for column in feature_columns
-        if column not in {DATE_COLUMN, GROUP_COLUMN}
-    ]
-    if not model_columns:
-        raise ValueError("At least one approved pre-outcome model feature is required")
-    return frame.loc[:, model_columns].copy()
+    return frame.loc[:, list(feature_columns)].copy()
 
 
 def train_conversion_model(
@@ -133,7 +125,7 @@ def train_conversion_model(
     """Fit baselines on a group-disjoint holdout and group-confined CV folds."""
 
     _validate_training_inputs(features, target, groups)
-    feature_matrix = build_feature_matrix(features, list(features.columns))
+    feature_matrix = build_feature_matrix(features, APPROVED_MODEL_FEATURES)
     target_binary = _binary_target(target).reset_index(drop=True)
     groups_clean = groups.reset_index(drop=True)
     feature_matrix = feature_matrix.reset_index(drop=True)
@@ -159,13 +151,14 @@ def train_conversion_model(
         "pr_auc": "average_precision",
         "brier": "neg_brier_score",
     }
+    cv_folds = list(splitter.split(x_train, y_train, group_train))
     for name, pipeline in pipelines.items():
         scored = cross_validate(
             pipeline,
             x_train,
             y_train,
             groups=group_train,
-            cv=splitter,
+            cv=cv_folds,
             scoring=scoring,
             n_jobs=1,
             error_score="raise",
@@ -177,6 +170,17 @@ def train_conversion_model(
         }
         fitted[name] = pipeline.fit(x_train, y_train)
     selected = max(cv_scores, key=lambda name: cv_scores[name]["pr_auc"])
+    selected_oof_probability = np.asarray(
+        cross_val_predict(
+            pipelines[selected],
+            x_train,
+            y_train,
+            cv=cv_folds,
+            method="predict_proba",
+            n_jobs=1,
+        )[:, 1]
+    )
+    selected_threshold = _capacity_threshold(selected_oof_probability)
     split_metadata = {
         "method": "group_shuffle_split",
         "group_column": GROUP_COLUMN,
@@ -185,6 +189,8 @@ def train_conversion_model(
         "training_rows": len(train_index),
         "random_state": split_seed,
         "cv": f"GroupKFold(n_splits={cv_splits}) on training data only",
+        "threshold_source": "grouped_out_of_fold_training_predictions",
+        "threshold_oof_rows": len(selected_oof_probability),
         "group_overlap_count": len(set(group_train).intersection(set(group_test))),
         "date_range": _date_range(original_features),
     }
@@ -194,6 +200,7 @@ def train_conversion_model(
         feature_columns=tuple(feature_matrix.columns),
         training_prevalence=float(y_train.mean()),
         cv_scores=cv_scores,
+        selected_threshold=selected_threshold,
         test=HeldOutData(
             features=x_test.assign(
                 **_reporting_columns(original_features.iloc[test_index], x_test.index)
@@ -221,7 +228,7 @@ def evaluate_conversion_model(
     selected_probability = predictions[bundle.selected_model_name]
     baseline_probability = np.full(len(y_test), bundle.training_prevalence)
     baseline = _probability_metrics(y_test, baseline_probability)
-    selected_threshold = _capacity_threshold(selected_probability)
+    selected_threshold = bundle.selected_threshold
     threshold_table = _threshold_table(y_test, selected_probability, selected_threshold)
     selected_predictions = (selected_probability >= selected_threshold).astype(int)
     matrix = confusion_matrix(y_test, selected_predictions, labels=[0, 1])
@@ -262,6 +269,17 @@ def _validate_training_inputs(
         raise ValueError("The conversion target must contain both outcome classes")
     if groups.isna().any():
         raise ValueError("Non-unique user-group buckets cannot be missing")
+    unexpected = sorted(set(features.columns).difference(APPROVED_INPUT_COLUMNS))
+    if unexpected:
+        raise LeakageError(
+            "Input contains columns outside the approved model/split/provenance "
+            "allowlist: " + ", ".join(unexpected)
+        )
+    missing = sorted(set(APPROVED_MODEL_FEATURES).difference(features.columns))
+    if missing:
+        raise ValueError(
+            "Required approved feature(s) are missing: " + ", ".join(missing)
+        )
 
 
 def _binary_target(target: pd.Series) -> pd.Series:

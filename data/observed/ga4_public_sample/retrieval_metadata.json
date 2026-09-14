@@ -69,14 +69,15 @@
         "bytes_billed": "1677721600",
         "bytes_processed": "1677485270",
         "cache_hit": false,
-        "job_id": "marketing_measurement_conversion_model_sessions_20260911141849533612",
+        "job_id": "marketing_measurement_conversion_model_sessions_20260911143248340205",
         "location": "US"
       },
+      "result_category": "identifier_free_session_model_data",
       "result_path": "data/observed/ga4_public_sample/conversion_model_sessions.json.gz",
-      "result_sha256": "6d71b626f7734f261b217489e91d12af95a592955b3eb091542eb5c392b9a6b6",
+      "result_sha256": "cf828e20761a596a0ca1a7f2568dd808792367137ba7bd0a6a3bfc946dfccf9c",
       "scope": "Identifier-free 10% deterministic user-level sample at one row per measured session for educational conversion-model evaluation.",
       "sql_path": "sql/bigquery/conversion_model_sessions.sql",
-      "sql_sha256": "8bf1cf9099515ce457479c69d3808702e6684f7c21b528ae314aee2124fcd128"
+      "sql_sha256": "26e5aead54dee1c80bc695d78664319b328ba59cda7a64ee8a3f3ac3ad7e0270"
     },
     "event_parameter_availability": {
       "dry_run": {
@@ -129,5 +130,5 @@
       "sql_sha256": "dccc2c607ae882e053eec80a039b31b5a5987d387d32e8833dee42befcbf928c"
     }
   },
-  "retrieved_at_utc": "2026-09-11T14:18:59.511371+00:00"
+  "retrieved_at_utc": "2026-09-11T14:32:58.431586+00:00"
 }

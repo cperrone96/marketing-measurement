@@ -7,7 +7,9 @@ Observed public outputs were retrieved with the documented billing project and a
 4 GB cap per query. The aggregate outputs are compact JSON files. The conversion
 model uses a separate 10% deterministic, identifier-free session sample compressed as
 `data/observed/ga4_public_sample/conversion_model_sessions.json.gz`; it contains one
-row per session but no raw user, session, transaction, or event identifier.
+row per session but no raw user, session, transaction, or event identifier. Its query
+uses canonical first-event and final-output tie-breakers, and the retrieval script
+writes gzip bytes with fixed timestamp and empty filename metadata.
 
 ## Export-query provenance
 

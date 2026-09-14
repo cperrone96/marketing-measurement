@@ -17,7 +17,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "duckdb>=1.1,<2",
+    "ipykernel>=6.29,<8",
     "mypy>=1.13,<2",
+    "nbconvert>=7.16,<8",
     "pandas-stubs>=2.2,<3",
     "psycopg[binary]>=3.2,<4",
     "pytest>=8.3,<9",

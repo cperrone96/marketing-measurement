@@ -40,6 +40,16 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _write_deterministic_gzip(path: Path, content: str) -> None:
+    """Write canonical JSON bytes without timestamp or filename gzip metadata."""
+
+    with (
+        path.open("wb") as raw_file,
+        gzip.GzipFile(filename="", mode="wb", fileobj=raw_file, mtime=0) as gzip_file,
+    ):
+        gzip_file.write(content.encode("utf-8"))
+
+
 def _safe_dry_run_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     query = payload.get("statistics", {}).get("query", {})
     return {
@@ -88,8 +98,7 @@ def main() -> None:
     job_id = f"marketing_measurement_{QUERY_NAME}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
     result = _run_bq(_query_arguments(sql, dry_run=False, job_id=job_id))
     job = _run_bq(["show", "--format=json", "-j", job_id])
-    with gzip.open(OUTPUT_PATH, "wt", encoding="utf-8") as output_file:
-        output_file.write(result.stdout)
+    _write_deterministic_gzip(OUTPUT_PATH, result.stdout)
     metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
     queries = metadata.setdefault("queries", {})
     queries[QUERY_NAME] = {
@@ -103,6 +112,7 @@ def main() -> None:
             "Identifier-free 10% deterministic user-level sample at one row per "
             "measured session for educational conversion-model evaluation."
         ),
+        "result_category": "identifier_free_session_model_data",
     }
     metadata["retrieved_at_utc"] = datetime.now(UTC).isoformat()
     METADATA_PATH.write_text(
