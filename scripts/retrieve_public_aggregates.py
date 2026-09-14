@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SQL_DIRECTORY = ROOT / "sql" / "bigquery"
 OUTPUT_DIRECTORY = ROOT / "data" / "observed" / "ga4_public_sample"
 QUERY_NAMES = (
+    "event_parameter_availability",
     "funnel_daily_by_channel",
     "cohort_retention",
     "conversion_channel_paths",
@@ -87,7 +88,7 @@ def main() -> None:
         sql_path = SQL_DIRECTORY / f"{name}.sql"
         sql = sql_path.read_text(encoding="utf-8")
         dry_run = _run_bq(_query_arguments(sql, dry_run=True))
-        job_id = f"marketing_measurement_{name}_{datetime.now(UTC):%Y%m%d%H%M%S}"
+        job_id = f"marketing_measurement_{name}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
         result = _run_bq(_query_arguments(sql, dry_run=False, job_id=job_id))
         job = _run_bq(["show", "--format=json", "-j", job_id])
         output_path = OUTPUT_DIRECTORY / f"{name}.json"

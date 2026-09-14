@@ -6,13 +6,14 @@
     "coverage_end": "2021-01-31",
     "retrieval": {
       "status": "retrieved_aggregate_only",
-      "retrieved_at_utc": "2026-09-11T13:49:05.887878+00:00",
+      "retrieved_at_utc": "2026-09-11T14:04:14.831662+00:00",
       "project_id": "christina-data-portfolio-2026",
       "maximum_bytes_billed_per_query": 4000000000,
       "metadata_path": "data/observed/ga4_public_sample/retrieval_metadata.json",
-      "scope": "Three compact aggregate-only public-data results; no raw event-level records were downloaded or committed."
+      "scope": "Four compact aggregate-only public-data results, including parameter availability; no raw event-level records were downloaded or committed."
     },
     "query_provenance": [
+      "sql/bigquery/event_parameter_availability.sql",
       "sql/bigquery/funnel_daily_by_channel.sql",
       "sql/bigquery/cohort_retention.sql",
       "sql/bigquery/conversion_channel_paths.sql"
@@ -21,7 +22,7 @@
   "checksums": {
     "source_public_data_snapshot": {
       "algorithm": "sha256",
-      "value": "3571a04ebff804811e167902ae5f9ae5448d2f0940d413e021408ad25dcd268c",
+      "value": "53e5b082fd74386cb0f6f005aeb02618c14d69db42e8689ea8156c658dce1d34",
       "path": "data/observed/ga4_public_sample/retrieval_metadata.json",
       "status": "aggregate_only",
       "scope": "Observed Google public-sample retrieval metadata and checksums for aggregate-only outputs; not a raw event snapshot."
@@ -29,9 +30,10 @@
     "observed_aggregate_outputs": {
       "algorithm": "sha256",
       "files": {
-        "data/observed/ga4_public_sample/funnel_daily_by_channel.json": "7cc4c9ce325f6314bef383cd8497989026c7d1b6aa73d4166362f7c6b1e25389",
-        "data/observed/ga4_public_sample/cohort_retention.json": "a34d296c00666f3c3febabe7672819c94b29af625e38bbed099bff2e98930a1f",
-        "data/observed/ga4_public_sample/conversion_channel_paths.json": "30b5744713a04d3864857088b71002c100ccb1aad2ccdced42b10ceac352a359"
+        "data/observed/ga4_public_sample/event_parameter_availability.json": "2beb075c9fc57f7178ea6c89f0f6df6edc0e594f360ea4b33e06d761fd353574",
+        "data/observed/ga4_public_sample/funnel_daily_by_channel.json": "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
+        "data/observed/ga4_public_sample/cohort_retention.json": "42cbe7d216b59b899901ff3017493715338910706edd048a50bfd6c0f355e2b7",
+        "data/observed/ga4_public_sample/conversion_channel_paths.json": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f"
       }
     },
     "synthetic_test_fixture": {

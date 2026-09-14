@@ -5,7 +5,7 @@
     "cohort_retention": {
       "dry_run": {
         "bytes_billed": "0",
-        "bytes_processed": "982194818",
+        "bytes_processed": "1007279938",
         "referenced_tables": [
           {
             "datasetId": "ga4_obfuscated_sample_ecommerce",
@@ -16,21 +16,21 @@
         "statement_type": "SELECT"
       },
       "job": {
-        "bytes_billed": "982515712",
-        "bytes_processed": "982194818",
+        "bytes_billed": "1007681536",
+        "bytes_processed": "1007279938",
         "cache_hit": false,
-        "job_id": "marketing_measurement_cohort_retention_20260911134918",
+        "job_id": "marketing_measurement_cohort_retention_20260911140446367230",
         "location": "US"
       },
       "result_path": "data/observed/ga4_public_sample/cohort_retention.json",
-      "result_sha256": "a34d296c00666f3c3febabe7672819c94b29af625e38bbed099bff2e98930a1f",
+      "result_sha256": "42cbe7d216b59b899901ff3017493715338910706edd048a50bfd6c0f355e2b7",
       "sql_path": "sql/bigquery/cohort_retention.sql",
-      "sql_sha256": "19653649f1a7f77306b8cb1fd5f9808b7535bb44dd9d69d9f79f97c3627d9448"
+      "sql_sha256": "5dffaf3790a232c72d97a6fdd8c367347db293a91c1c2dc558f9b4d9b60110b8"
     },
     "conversion_channel_paths": {
       "dry_run": {
         "bytes_billed": "0",
-        "bytes_processed": "1118585192",
+        "bytes_processed": "1590253819",
         "referenced_tables": [
           {
             "datasetId": "ga4_obfuscated_sample_ecommerce",
@@ -41,21 +41,46 @@
         "statement_type": "SELECT"
       },
       "job": {
-        "bytes_billed": "1118830592",
-        "bytes_processed": "1118585192",
+        "bytes_billed": "1590689792",
+        "bytes_processed": "1590253819",
         "cache_hit": false,
-        "job_id": "marketing_measurement_conversion_channel_paths_20260911134932",
+        "job_id": "marketing_measurement_conversion_channel_paths_20260911140459797748",
         "location": "US"
       },
       "result_path": "data/observed/ga4_public_sample/conversion_channel_paths.json",
-      "result_sha256": "30b5744713a04d3864857088b71002c100ccb1aad2ccdced42b10ceac352a359",
+      "result_sha256": "f3fc57a1ba15181f0a116ef1e549ec97d9c778985a970ad0aabfe85628b69d8f",
       "sql_path": "sql/bigquery/conversion_channel_paths.sql",
-      "sql_sha256": "4fd38c53349e19e39a8a6077479e2076a7a498ce7810f029c98e815fb2403898"
+      "sql_sha256": "0d5be971cad84c393086fc41014bb355fffb51c25255d31023864a920ecb85e6"
+    },
+    "event_parameter_availability": {
+      "dry_run": {
+        "bytes_billed": "0",
+        "bytes_processed": "1467083674",
+        "referenced_tables": [
+          {
+            "datasetId": "ga4_obfuscated_sample_ecommerce",
+            "projectId": "bigquery-public-data",
+            "tableId": "events_*"
+          }
+        ],
+        "statement_type": "SELECT"
+      },
+      "job": {
+        "bytes_billed": "1468006400",
+        "bytes_processed": "1467083674",
+        "cache_hit": false,
+        "job_id": "marketing_measurement_event_parameter_availability_20260911140417897464",
+        "location": "US"
+      },
+      "result_path": "data/observed/ga4_public_sample/event_parameter_availability.json",
+      "result_sha256": "2beb075c9fc57f7178ea6c89f0f6df6edc0e594f360ea4b33e06d761fd353574",
+      "sql_path": "sql/bigquery/event_parameter_availability.sql",
+      "sql_sha256": "bd3267689a03d7ee7414eca950ae9f8fff4a11a1cb223c42dab108119faf5e5f"
     },
     "funnel_daily_by_channel": {
       "dry_run": {
         "bytes_billed": "0",
-        "bytes_processed": "1127176360",
+        "bytes_processed": "1590253819",
         "referenced_tables": [
           {
             "datasetId": "ga4_obfuscated_sample_ecommerce",
@@ -66,17 +91,17 @@
         "statement_type": "SELECT"
       },
       "job": {
-        "bytes_billed": "1127219200",
-        "bytes_processed": "1127176360",
+        "bytes_billed": "1590689792",
+        "bytes_processed": "1590253819",
         "cache_hit": false,
-        "job_id": "marketing_measurement_funnel_daily_by_channel_20260911134909",
+        "job_id": "marketing_measurement_funnel_daily_by_channel_20260911140429171353",
         "location": "US"
       },
       "result_path": "data/observed/ga4_public_sample/funnel_daily_by_channel.json",
-      "result_sha256": "7cc4c9ce325f6314bef383cd8497989026c7d1b6aa73d4166362f7c6b1e25389",
+      "result_sha256": "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
       "sql_path": "sql/bigquery/funnel_daily_by_channel.sql",
-      "sql_sha256": "343c4988f4dfefe07c09a001ea836fe0cf3593c60345014ae1a34d3fd19151ea"
+      "sql_sha256": "dccc2c607ae882e053eec80a039b31b5a5987d387d32e8833dee42befcbf928c"
     }
   },
-  "retrieved_at_utc": "2026-09-11T13:49:05.887878+00:00"
+  "retrieved_at_utc": "2026-09-11T14:04:14.831662+00:00"
 }
