@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-11T19:00:00Z",
+  "title": "Design System: Marketing Measurement Decision Studio",
+  "extensions": {
+    "colorMeta": {
+      "ink": { "role": "neutral", "displayName": "Tally Ink", "canonical": "#152b31", "tonalRamp": ["#0d1b1f", "#152b31", "#40585d", "#9f988b", "#e8dfcf", "#f5f0e6"] },
+      "paper": { "role": "neutral", "displayName": "Warm Paper", "canonical": "#f5f0e6", "tonalRamp": ["#152b31", "#40585d", "#9f988b", "#c9c1b1", "#e8dfcf", "#f5f0e6", "#fffaf0"] },
+      "observed": { "role": "primary", "displayName": "Public Evidence Green", "canonical": "#1e4d45", "tonalRamp": ["#102c28", "#1e4d45", "#347568", "#9eb5af", "#d5e2dc", "#eff5f2"] },
+      "synthetic": { "role": "secondary", "displayName": "Synthetic Evidence Violet", "canonical": "#5b4c91", "tonalRamp": ["#332958", "#5b4c91", "#8d77c2", "#b5a9da", "#e1dcf0", "#f5f2fb"] },
+      "signal": { "role": "tertiary", "displayName": "Investigation Signal", "canonical": "#bb6c3f", "tonalRamp": ["#6d3820", "#8a4d2d", "#bb6c3f", "#f0b68e", "#f8d8c0", "#fff3e8"] },
+      "alert": { "role": "tertiary", "displayName": "Alert Red", "canonical": "#8a3f33", "tonalRamp": ["#4d201b", "#6d2a22", "#8a3f33", "#b86d60", "#f1ddd4", "#faefeb"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Decision Display", "purpose": "Route-level decision titles and chart-record headings." },
+      "headline": { "displayName": "Evidence Headline", "purpose": "Section and record titles that introduce a specific body of evidence." },
+      "body": { "displayName": "Evidence Record", "purpose": "Explanations, provenance, navigation, tables, controls, and numerical data." },
+      "label": { "displayName": "Tally Label", "purpose": "Compact status and operational labels with tracking or uppercase treatment where shown." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "tally-arrive", "value": "520ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "One-time clipped tally-line reveal for loading content; disabled under reduced motion." },
+      { "name": "route-focus-note", "value": "140ms ease-out", "purpose": "Opacity and upward translation of the focused route's decision note; disabled under reduced motion." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Decision Control",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Square, ink-filled control for executing a dashboard action.",
+      "html": "<button class=\"ds-button\" type=\"button\">Run synthetic scenario</button>",
+      "css": ".ds-button{min-height:44px;padding:.7rem 1rem;border:1px solid #152b31;border-radius:0;background:#152b31;color:#f5f0e6;font:inherit;cursor:pointer}.ds-button:hover{background:#1e4d45}.ds-button:focus-visible{outline:3px solid #bb6c3f;outline-offset:4px}.ds-button:disabled{cursor:not-allowed;opacity:.62}"
+    },
+    {
+      "name": "Observed Evidence Lane",
+      "kind": "card",
+      "refersTo": "evidence-observed",
+      "description": "A solid mint provenance lane used for public observed GA4 evidence.",
+      "html": "<section class=\"ds-evidence ds-evidence--observed\"><strong>Public GA4 evidence</strong><span>2020-11-01 through 2021-01-31</span></section>",
+      "css": ".ds-evidence{padding:1.3rem 1.4rem;border:1px solid #152b31;border-radius:0;color:#152b31;font-family:'IBM Plex Mono',Menlo,monospace}.ds-evidence--observed{background:#d5e2dc}.ds-evidence strong,.ds-evidence span{display:block}.ds-evidence span{margin-top:.25rem;color:#40585d;font-size:.84rem}"
+    },
+    {
+      "name": "Synthetic Evidence Lane",
+      "kind": "card",
+      "refersTo": "evidence-synthetic",
+      "description": "A labelled, hatched lilac provenance lane for synthetic demonstrations.",
+      "html": "<section class=\"ds-evidence ds-evidence--synthetic\"><strong>Synthetic integration demonstration</strong><span>Deterministic scenario seed</span></section>",
+      "css": ".ds-evidence{padding:1.3rem 1.4rem;border:1px solid #152b31;border-radius:0;color:#152b31;font-family:'IBM Plex Mono',Menlo,monospace}.ds-evidence--synthetic{background-color:#e1dcf0;background-image:repeating-linear-gradient(135deg,transparent 0,transparent 10px,rgba(91,76,145,.08) 10px,rgba(91,76,145,.08) 11px)}.ds-evidence strong,.ds-evidence span{display:block}.ds-evidence span{margin-top:.25rem;color:#40585d;font-size:.84rem}"
+    },
+    {
+      "name": "Decision Tally",
+      "kind": "card",
+      "refersTo": "decision-tally",
+      "description": "The dark, flat status field that presents the called decision beside the supporting record.",
+      "html": "<section class=\"ds-tally\"><span>Decision status</span><strong>INVESTIGATE</strong><a href=\"#\">Open journey evidence</a></section>",
+      "css": ".ds-tally{display:flex;flex-direction:column;justify-content:center;gap:1rem;min-height:18rem;padding:2rem;border-radius:0;background:#152b31;color:#f5f0e6;font-family:'IBM Plex Mono',Menlo,monospace}.ds-tally span{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase}.ds-tally strong{color:#f0b68e;font-size:2.8rem;line-height:.9;letter-spacing:-.03em}.ds-tally a{align-self:flex-start;color:#fff3e8}.ds-tally a:hover{color:#f0b68e}"
+    },
+    {
+      "name": "Route Rail",
+      "kind": "nav",
+      "refersTo": "route-navigation",
+      "description": "Wrapping mono route rail with a called active route and an accessible focus disclosure.",
+      "html": "<nav class=\"ds-routes\"><a aria-current=\"page\" href=\"#\">Summary</a><a href=\"#\">Journeys</a></nav>",
+      "css": ".ds-routes{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem}.ds-routes a{padding:.28rem 0;border-bottom:1px solid transparent;color:#152b31;font-family:'IBM Plex Mono',Menlo,monospace;font-size:.78rem;text-decoration:none}.ds-routes a:hover{border-color:#8a3f33}.ds-routes a[aria-current='page']{border-color:#152b31;font-weight:600}.ds-routes a:focus-visible{outline:3px solid #bb6c3f;outline-offset:4px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Decision-Night Tally Desk",
+    "overview": "This is a calm decision interface where evidence is counted, called, held, or investigated in public view. Warm paper, ink rules, exact mono text, and square fields make it read as an executive evidence record rather than a SaaS dashboard. The title and decision call establish the conclusion before a reader enters the supporting record.\n\nPublic observation and synthetic planning are intentionally inequivalent visual states. Solid mint identifies public observed evidence; a labelled, faintly hatched lilac lane identifies synthetic demonstrations. Orange calls attention or carries keyboard focus, while red is held for limitations and warnings.",
+    "keyCharacteristics": [
+      "Warm-paper ground with dark ink rules and a square, flat component language.",
+      "Newsreader decision calls paired with IBM Plex Mono throughout operational evidence.",
+      "Public and synthetic evidence separated by written labels, hue, and a synthetic-only hatch pattern.",
+      "Chart records always paired with a native table alternative and provenance disclosure."
+    ],
+    "rules": [
+      { "name": "The Evidence Lane Rule", "body": "Never collapse public and synthetic evidence into an unmarked common surface. Public evidence stays solid mint; synthetic evidence stays hatched lilac, and both retain explicit written labels.", "section": "colors" },
+      { "name": "The Record Type Rule", "body": "Keep operational UI, numbers, navigation, provenance, and tables in IBM Plex Mono. Use Newsreader for decision statements and evidence headings only.", "section": "typography" },
+      { "name": "The Flat Record Rule", "body": "Express hierarchy with rules, contrast, and open space—not rounded cards, shadows, glass, or decorative gradients.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do lead every route with its decision, next action, and visible evidence boundary.",
+      "Do preserve the solid-mint observed lane and the hatched-lilac synthetic lane with explicit labels.",
+      "Do retain the 3px orange, 4px-offset keyboard focus treatment and reduced-motion overrides.",
+      "Do pair visual summaries with their native table alternative and provenance record.",
+      "Do use red only for warnings, limitations, and unavailable evidence."
+    ],
+    "donts": [
+      "Don't use rounded cards, pill controls, drop shadows, glass effects, or decorative gradients.",
+      "Don't rely on color alone to distinguish public observed evidence from synthetic demonstrations.",
+      "Don't use Newsreader for metadata, controls, navigation, or dense evidence text.",
+      "Don't make old public evidence look current, or synthetic planning output look observed.",
+      "Don't present descriptive attribution as causal proof."
+    ]
+  }
+}
