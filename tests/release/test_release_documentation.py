@@ -11,6 +11,12 @@ from pathlib import Path
 
 import pytest
 
+from scripts.smoke_notebooks import (
+    EvidenceIntegrityError,
+    prepare_generated_evidence,
+    verify_generated_evidence,
+)
+
 ROOT = Path(__file__).parents[2]
 REQUIRED_DOCS = (
     "README.md",
@@ -104,6 +110,7 @@ def test_every_readme_finding_matches_authoritative_evidence_and_is_traceable() 
             assert fragment in section
     _assert_standard_finding_fields(sections[4])
     _assert_model_claim_matches(sections[4], model_card)
+    _assert_decisions_and_limitations(sections)
 
     required_trace_targets = {
         1: ("sql/bigquery/funnel_daily_by_channel.sql", "notebooks/01_public_data_findings.ipynb"),
@@ -127,6 +134,65 @@ def test_false_readme_model_pr_auc_is_rejected() -> None:
 
     with pytest.raises(AssertionError):
         _assert_model_claim_matches(falsified, model_card)
+
+
+def test_false_model_flagged_share_is_rejected() -> None:
+    model_section = _readme_finding(4)
+    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
+    falsified = model_section.replace("4.38%", "99%")
+
+    with pytest.raises(AssertionError):
+        _assert_model_claim_matches(falsified, model_card)
+
+
+@pytest.mark.parametrize(
+    ("finding", "replacement"),
+    (
+        (3, "- **Decision:** Start immediate live targeting from attribution."),
+        (4, "- **Decision:** Deploy immediate live targeting without further review."),
+    ),
+)
+def test_unsupported_readme_decisions_are_rejected(
+    finding: int, replacement: str
+) -> None:
+    sections = {number: _readme_finding(number) for number in range(1, 5)}
+    sections[finding] = re.sub(
+        r"- \*\*Decision:\*\*.*?(?=\n- \*\*Limitations:)",
+        replacement,
+        sections[finding],
+        flags=re.DOTALL,
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_decisions_and_limitations(sections)
+
+
+def test_unsupported_readme_limitations_are_rejected() -> None:
+    sections = {number: _readme_finding(number) for number in range(1, 5)}
+    sections[4] = re.sub(
+        r"- \*\*Limitations:\*\*.*?(?=\n- \*\*Trace:)",
+        "- **Limitations:** No meaningful limitations.",
+        sections[4],
+        flags=re.DOTALL,
+    )
+
+    with pytest.raises(AssertionError):
+        _assert_decisions_and_limitations(sections)
+
+
+def test_notebook_smoke_requires_freshly_created_generated_evidence(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "canonical"
+    workspace = tmp_path / "workspace"
+    for root in (canonical, workspace):
+        generated = root / "data/derived/ga4_public_sample/findings_summary.json"
+        generated.parent.mkdir(parents=True)
+        generated.write_text('{"status": "reviewed"}\n')
+
+    prepare_generated_evidence(workspace)
+    with pytest.raises(EvidenceIntegrityError, match="was not freshly created"):
+        verify_generated_evidence(workspace, canonical)
 
 
 def test_notebook_smoke_rejects_tampered_tracked_evidence_before_execution(
@@ -203,15 +269,75 @@ def _assert_standard_finding_fields(section: str) -> None:
 
 
 def _assert_model_claim_matches(section: str, model_card: str) -> None:
+    capacity = re.search(
+        r"threshold is ([0-9]+(?:\.[0-9]+)?).*?flags ([\d,]+) of ([\d,]+) "
+        r"held-out sessions\s+\(([0-9]+(?:\.[0-9]+)?) per\s+1,000\), with "
+        r"precision ([0-9]+(?:\.[0-9]+)?) and recall ([0-9]+(?:\.[0-9]+)?)",
+        model_card,
+        flags=re.DOTALL,
+    )
+    assert capacity is not None
+    threshold, flagged, holdout, _per_thousand, precision, recall = capacity.groups()
+    flagged_count = int(flagged.replace(",", ""))
+    holdout_count = int(holdout.replace(",", ""))
+    confusion = re.search(
+        r"([\d,]+) false negatives, and ([\d,]+) true positives", model_card
+    )
+    assert confusion is not None
+    conversions = sum(int(value.replace(",", "")) for value in confusion.groups())
     expected_fragments = (
         _model_card_value(model_card, "Logistic regression, held out", "PR-AUC"),
         _model_card_value(model_card, "No-skill prevalence, held out", "PR-AUC"),
-        "7,245",
-        "0.035589",
-        "317",
-        "6.94%",
-        "21.78%",
-        "101",
+        f"{holdout_count:,}",
+        threshold,
+        f"{flagged_count:,}",
+        f"{flagged_count / holdout_count:.2%}",
+        f"{float(precision):.2%}",
+        f"{float(recall):.2%}",
+        f"{conversions:,}",
     )
     for fragment in expected_fragments:
         assert fragment in section
+
+
+def _readme_finding(number: int) -> str:
+    readme = (ROOT / "README.md").read_text()
+    match = re.search(
+        rf"### {number}\. .*?(?=\n### |\n## )", readme, flags=re.DOTALL
+    )
+    assert match is not None
+    return match.group(0)
+
+
+def _assert_decisions_and_limitations(sections: dict[int, str]) -> None:
+    required_meaning = {
+        1: (
+            "Prioritize instrumentation and testable journey hypotheses",
+            "engaged-to-cart transition",
+            "descriptive session funnel, not causal evidence",
+            "ordered event progression is not asserted",
+        ),
+        2: (
+            "measurement question requiring explicit lifecycle hypotheses",
+            "current-data validation, not as an assumed growth lever",
+            "public source window",
+            "historic ecommerce context limit generalization",
+        ),
+        3: (
+            "randomized experiments for causal campaign decisions",
+            "descriptive attribution; not causal",
+            "Event-scoped channel data",
+            "unattributed and obfuscated values",
+        ),
+        4: (
+            "requires current governed data, a new validation set, privacy review, and monitoring",
+            "Only 101 held-out conversions",
+            "split key is non-unique",
+            "prediction does not establish lift",
+        ),
+    }
+    forbidden = ("immediate live targeting", "no meaningful limitations")
+    for number, phrases in required_meaning.items():
+        normalized = " ".join(sections[number].lower().split())
+        assert all(" ".join(phrase.lower().split()) in normalized for phrase in phrases)
+        assert all(phrase not in normalized for phrase in forbidden)

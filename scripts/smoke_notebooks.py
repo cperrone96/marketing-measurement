@@ -64,6 +64,7 @@ def run_notebook_smoke(root: Path, output_dir: Path) -> None:
                 "*.pyc",
             ),
         )
+        prepare_generated_evidence(workspace)
         environment = os.environ.copy()
         environment["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{environment['PATH']}"
         for relative_notebook in DEFAULT_NOTEBOOKS:
@@ -83,16 +84,33 @@ def run_notebook_smoke(root: Path, output_dir: Path) -> None:
                 env=environment,
                 check=True,
             )
-        for relative_artifact in GENERATED_EVIDENCE:
-            generated = workspace / relative_artifact
-            reviewed = root / relative_artifact
-            if generated.read_bytes() != reviewed.read_bytes():
-                raise EvidenceIntegrityError(
-                    f"notebook-generated evidence differs from reviewed artifact: "
-                    f"{relative_artifact}"
-                )
+        verify_generated_evidence(workspace, root)
 
     verify_release_checksums(root, "after")
+
+
+def prepare_generated_evidence(workspace: Path) -> None:
+    """Remove copied generated outputs so notebooks must create fresh evidence."""
+    for relative_artifact in GENERATED_EVIDENCE:
+        generated = workspace / relative_artifact
+        if generated.exists():
+            generated.unlink()
+
+
+def verify_generated_evidence(workspace: Path, canonical_root: Path) -> None:
+    """Require each output to be freshly created and byte-identical to canonical."""
+    for relative_artifact in GENERATED_EVIDENCE:
+        generated = workspace / relative_artifact
+        reviewed = canonical_root / relative_artifact
+        if not generated.is_file():
+            raise EvidenceIntegrityError(
+                f"notebook-generated evidence was not freshly created: {relative_artifact}"
+            )
+        if generated.read_bytes() != reviewed.read_bytes():
+            raise EvidenceIntegrityError(
+                f"notebook-generated evidence differs from reviewed artifact: "
+                f"{relative_artifact}"
+            )
 
 
 def main() -> int:

@@ -71,7 +71,8 @@ representative of a current business or campaign.
 - **Evidence:** Public observed, identifier-free deterministic 10% user-level sample.
   The selected logistic model scored 0.041429 PR-AUC on 7,245 untouched held-out
   sessions versus a 0.013941 no-skill baseline. A training-only frozen threshold of
-  0.035589 flagged 317 sessions with 6.94% precision and 21.78% recall.
+  0.035589 flagged 317 sessions (4.38% of the holdout) with 6.94% precision
+  and 21.78% recall.
 - **Decision:** The workflow supports capacity-aware review-queue design; any real use
   requires current governed data, a new validation set, privacy review, and monitoring.
 - **Limitations:** Only 101 held-out conversions were observed; the split key is
@@ -130,8 +131,9 @@ URL and tag; no URL is invented here.
 
 `make release-gate` verifies reviewed SHA-256 values before any executable step, runs
 Ruff, strict mypy over `src` and `api`, all pytest suites, and both notebooks offline
-inside a temporary source copy. Generated evidence is byte-compared with the reviewed
-artifact, checksums are verified again afterward, and executed notebooks go to
+inside a temporary source copy after copied generated outputs are removed. Every output
+must be freshly created and byte-identical to the reviewed artifact; checksums are
+verified again afterward, and executed notebooks go to
 `.artifacts/notebook-smoke/`. The source checkout is never repaired or rewritten.
 
 To run the interfaces in two terminals:

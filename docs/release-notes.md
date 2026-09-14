@@ -45,8 +45,9 @@ First portfolio-ready release of the Marketing Measurement Decision Studio.
 The documented clean setup exports the current committed local `HEAD`, creates a Python
 3.12 virtual environment, installs the `dev` extra, then runs `make release-gate`.
 That gate verifies checksums before execution, runs public observed and synthetic
-fixture tests without cloud access, executes both notebooks in a temporary source copy,
-byte-compares generated evidence, and verifies checksums again afterward.
+fixture tests without cloud access, removes copied generated outputs in a temporary
+source copy, requires the notebooks to recreate byte-identical evidence, and verifies
+source checksums again afterward.
 
 ### Known limitations
 
