@@ -423,6 +423,57 @@ def test_budget_response_includes_aligned_synthetic_experiment_scenario(
     assert experiment["planned_sample_per_arm"] == 4209
     assert experiment["analysis_population"].startswith("all randomized")
     assert experiment["conclusion"].startswith("inconclusive")
+    assert experiment["evidence"]["provenance"]["artifact"] == (
+        "src/marketing_measurement/analysis/experiments.py + "
+        "src/marketing_measurement/simulation/integration.py composite manifest"
+    )
+    assert experiment["evidence"]["provenance"]["sha256"] != response.json()[
+        "evidence"
+    ]["provenance"]["sha256"]
+
+
+def test_experiment_composite_provenance_changes_independently_from_budget(
+    tmp_path: Path,
+) -> None:
+    experiment = tmp_path / "src/marketing_measurement/analysis/experiments.py"
+    integration = tmp_path / "src/marketing_measurement/simulation/integration.py"
+    budget = tmp_path / "src/marketing_measurement/analysis/budget.py"
+    for path, content in (
+        (experiment, "experiment v1"),
+        (integration, "integration v1"),
+        (budget, "budget v1"),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    service = MarketingMeasurementService(ArtifactRepository(tmp_path))
+
+    experiment_before = service.synthetic_evidence("experiment")
+    budget_before = service.synthetic_evidence("budget")
+    experiment.write_text("experiment v2", encoding="utf-8")
+    experiment_after_experiment_change = service.synthetic_evidence("experiment")
+    budget_after_experiment_change = service.synthetic_evidence("budget")
+    integration.write_text("integration v2", encoding="utf-8")
+    experiment_after_integration_change = service.synthetic_evidence("experiment")
+    budget_after_integration_change = service.synthetic_evidence("budget")
+
+    experiment_hashes = {
+        evidence["provenance"]["sha256"]
+        for evidence in (
+            experiment_before,
+            experiment_after_experiment_change,
+            experiment_after_integration_change,
+        )
+    }
+    assert len(experiment_hashes) == 3
+    assert budget_before["provenance"]["sha256"] == budget_after_experiment_change[
+        "provenance"
+    ]["sha256"]
+    assert budget_before["provenance"]["sha256"] == budget_after_integration_change[
+        "provenance"
+    ]["sha256"]
+    assert experiment_after_integration_change["provenance"]["sha256"] != (
+        budget_after_integration_change["provenance"]["sha256"]
+    )
 
 
 def test_model_response_is_loaded_from_and_hashes_reviewed_output(client: APIClient) -> None:

@@ -280,6 +280,55 @@ def test_dashboard_surfaces_approved_analysis_scope_within_five_pages() -> None:
     assert "High-value journeys" in journeys_text
 
 
+def test_analysis_records_render_their_own_portfolio_provenance_not_funnel_provenance() -> None:
+    portfolio_evidence = Evidence(
+        evidence_type="public_observed",
+        source_date_or_window="2020-11-01 through 2021-01-31",
+        provenance=Provenance(
+            artifact="PORTFOLIO_MARKER", sha256="portfolio-hash-marker"
+        ),
+        limitations=["Portfolio limitation."],
+    )
+    funnel = _funnel()
+    funnel.evidence.provenance.artifact = "FUNNEL_MARKER"
+    funnel.evidence.provenance.sha256 = "funnel-hash-marker"
+    kpis = KpisResponse(
+        page=1,
+        page_size=100,
+        total=0,
+        items=[],
+        evidence=_evidence(),
+        analyses=[
+            {
+                "analysis": name,
+                "decision": "Inspect this result.",
+                "rows": [{"dimension": "example", "sessions": 10, "revenue": 5.0}],
+                "evidence": portfolio_evidence,
+            }
+            for name in (
+                "landing_page",
+                "device",
+                "product_revenue",
+                "high_value_journey",
+            )
+        ],
+    )
+    acquisition_text = _text(acquisition.layout(funnel, _cohorts(), kpis))
+    journeys_text = _text(
+        journeys.layout(
+            funnel,
+            AttributionResponse(page=1, page_size=100, total=0, items=[], evidence=_evidence()),
+            kpis,
+        )
+    )
+
+    for rendered in (acquisition_text, journeys_text):
+        assert "PORTFOLIO_MARKER" in rendered
+        assert "portfolio-hash-marker" in rendered
+    assert "FUNNEL_MARKER" in acquisition_text
+    assert "FUNNEL_MARKER" in journeys_text
+
+
 def test_empty_and_error_states_are_explicit_and_actionable() -> None:
     empty = acquisition.layout(
         FunnelResponse(
@@ -389,6 +438,7 @@ def test_scenario_result_renders_sensitivity_chart_and_text_alternative() -> Non
         robustness_summary="One tested assumption changes the preferred allocation.",
         experiment={
             "evidence_type": "synthetic",
+            "evidence": _evidence("synthetic"),
             "analysis_population": "all randomized synthetic audience candidates (intent-to-treat)",
             "baseline_rate": 0.062376,
             "minimum_detectable_effect": 0.015594,
@@ -407,6 +457,7 @@ def test_scenario_result_renders_sensitivity_chart_and_text_alternative() -> Non
     assert "Channel Aurora Down 20Pct" in text
     assert "The preferred allocation changes under this stress test." in text
     assert text.count("View evidence table") == 3
+    assert "reviewed fixture" in text
 
 
 def test_production_client_validates_full_sample_decision_contract() -> None:

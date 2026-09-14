@@ -5,7 +5,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 from dash import html
 
-from api.schemas import AttributionResponse, FunnelResponse, KpisResponse
+from api.schemas import AttributionResponse, Evidence, FunnelResponse, KpisResponse
 from dashboard.components import (
     chart_record,
     decision_header,
@@ -111,6 +111,7 @@ def layout(
                     analyses[name].decision,
                     [dict(row) for row in analyses[name].rows],
                     f"journey-{name}",
+                    analyses[name].evidence,
                 )
                 for name, title in (
                     ("product_revenue", "Product and revenue performance"),
@@ -133,8 +134,12 @@ def layout(
 
 
 def _analysis_record(
-    title: str, decision: str, rows: list[dict[str, object]], chart_id: str
-) -> html.Section:
+    title: str,
+    decision: str,
+    rows: list[dict[str, object]],
+    chart_id: str,
+    evidence: Evidence,
+) -> html.Div:
     figure = go.Figure(
         go.Bar(
             x=[str(row["dimension"]) for row in rows],
@@ -145,7 +150,13 @@ def _analysis_record(
     _style(figure, 360)
     figure.update_layout(yaxis_title="Observed revenue")
     columns = [(key, key.replace("_", " ").title()) for key in rows[0]] if rows else []
-    return chart_record(title, decision, figure, columns, rows, chart_id=chart_id)
+    return html.Div(
+        [
+            evidence_strip(evidence),
+            chart_record(title, decision, figure, columns, rows, chart_id=chart_id),
+        ],
+        className="analysis-record",
+    )
 
 
 def _empty_table() -> html.Details:

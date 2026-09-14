@@ -17,8 +17,14 @@ same structured 422 contract.
 
 `GET /api/v1/kpis` also publishes typed, public-observed analysis sections for landing
 pages, devices, product/revenue performance, and high-value journey patterns. The
+evidence object inside each section authenticates the reviewed
+`portfolio_decision_aggregates.json` artifact used for that section; it is distinct
+from the funnel evidence returned elsewhere on the same dashboard page. The
 existing `POST /api/v1/scenarios/budget` response includes the separately labelled
-synthetic randomized-experiment scenario; the API surface remains exactly ten routes.
+synthetic randomized-experiment scenario. Its nested evidence object authenticates a
+canonical manifest of both source files that produce the result (`experiments.py` and
+`integration.py`), while the response-level evidence continues to authenticate only
+the budget optimizer. The API surface remains exactly ten routes.
 
 ## Paginated detail and decision summaries
 

@@ -168,6 +168,7 @@ def result_layout(result: BudgetScenarioResponse) -> html.Div:
             html.Section(
                 [
                     html.H2("Randomized experiment scenario"),
+                    evidence_strip(result.experiment.evidence),
                     html.P(result.experiment.conclusion),
                     html.P(
                         f"Marginal ITT design: {result.experiment.planned_sample_per_arm:,} "

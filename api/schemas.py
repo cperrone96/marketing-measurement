@@ -226,6 +226,7 @@ class BudgetSensitivityItem(APIModel):
 
 class ExperimentScenario(APIModel):
     evidence_type: Literal["synthetic"]
+    evidence: Evidence
     analysis_population: str
     baseline_rate: float = Field(ge=0, le=1)
     minimum_detectable_effect: float = Field(gt=0, lt=1)

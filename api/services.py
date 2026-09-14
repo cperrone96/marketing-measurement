@@ -25,7 +25,7 @@ MIN_DATE = date(2020, 11, 1)
 MAX_DATE = date(2021, 1, 31)
 SUPPORTED_BUDGET_CHANNELS = frozenset({"channel_aurora", "channel_birch"})
 _CENT = Decimal("0.01")
-_SYNTHETIC_GENERATORS = {
+_SYNTHETIC_GENERATORS: dict[str, tuple[str, str | tuple[str, ...]]] = {
     "integration": (
         "deterministic integration generator",
         "src/marketing_measurement/simulation/integration.py",
@@ -33,6 +33,13 @@ _SYNTHETIC_GENERATORS = {
     "budget": (
         "deterministic budget scenario generator",
         "src/marketing_measurement/analysis/budget.py",
+    ),
+    "experiment": (
+        "src/marketing_measurement/analysis/experiments.py + src/marketing_measurement/simulation/integration.py composite manifest",
+        (
+            "src/marketing_measurement/analysis/experiments.py",
+            "src/marketing_measurement/simulation/integration.py",
+        ),
     ),
 }
 
@@ -82,12 +89,17 @@ class MarketingMeasurementService:
 
     def synthetic_evidence(self, generator: str) -> dict[str, Any]:
         artifact, source_artifact = _SYNTHETIC_GENERATORS[generator]
+        sha256 = (
+            self._repository.composite_source_sha256(source_artifact)
+            if isinstance(source_artifact, tuple)
+            else self._repository.source_sha256(source_artifact)
+        )
         return {
             "evidence_type": "synthetic",
             "source_date_or_window": f"deterministic scenario seed {SYNTHETIC_SEED}",
             "provenance": {
                 "artifact": artifact,
-                "sha256": self._repository.source_sha256(source_artifact),
+                "sha256": sha256,
             },
             "limitations": _SYNTHETIC_LIMITATIONS,
         }
@@ -357,6 +369,7 @@ class MarketingMeasurementService:
             "confidence_interval": result.confidence_interval,
             "confidence_level": result.confidence_level,
             "conclusion": result.conclusion,
+            "evidence": self.synthetic_evidence("experiment"),
         }
 
     def _validate_window(

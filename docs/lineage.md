@@ -28,11 +28,15 @@ source-window lookback.
 | --- | --- | --- | --- |
 | Fixture | `data/fixtures/ga4_schema_fixture.ndjson` | Small synthetic schema rows | Ingestion, quarantine, and SQL reconciliation tests only |
 | Generator | `src/marketing_measurement/simulation/integration.py` | 200 deterministic pseudonymous demonstration rows by default; seed 20260910 | Audience/integration measures and synthetic A/B analysis |
+| Experiment | `src/marketing_measurement/analysis/experiments.py` + `src/marketing_measurement/simulation/integration.py` | Marginal intent-to-treat scenario over the deterministic integration population | Scenario response with a canonical two-source manifest hash |
 | Scenario | `src/marketing_measurement/analysis/budget.py` | User-provided whole-cent assumptions constrained by minima/capacities | Synthetic budget API response with sensitivity |
 | Interface | `/api/v1/audiences/quality`, `/integrations/health`, `/scenarios/budget` | `evidence_type=synthetic`, generator hash, limitations | Hatched synthetic dashboard lane |
 
 Synthetic subjects use reserved `.example` domains and cannot be joined to the public
 observed lane. Scenario outputs are demonstrations, not forecasts or actual spend.
+The scenario page renders experiment provenance beside experiment content and budget
+provenance beside budget content; neither digest is used as a substitute for the
+other.
 
 ## Controls
 

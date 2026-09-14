@@ -63,3 +63,14 @@ class ArtifactRepository:
     def source_sha256(self, relative_path: str) -> str:
         """Return the committed generator artifact digest without exposing its path."""
         return hashlib.sha256((self._root / relative_path).read_bytes()).hexdigest()
+
+    def composite_source_sha256(self, relative_paths: tuple[str, ...]) -> str:
+        """Hash a canonical manifest of exact source paths and their content hashes."""
+        manifest = [
+            {"artifact": path, "sha256": self.source_sha256(path)}
+            for path in sorted(relative_paths)
+        ]
+        canonical = json.dumps(
+            manifest, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
