@@ -95,9 +95,7 @@ def _duckdb_database() -> tuple[Database, Any]:
 def _postgresql_database() -> tuple[Database, Any]:
     import psycopg
 
-    temporary_dir = Path(
-        tempfile.mkdtemp(prefix="marketing-measurement-pg-", dir="/private/tmp")
-    )
+    temporary_dir = Path(tempfile.mkdtemp(prefix="marketing-measurement-pg-"))
     cluster_dir = temporary_dir / "data"
     socket_dir = temporary_dir / "socket"
     socket_dir.mkdir()

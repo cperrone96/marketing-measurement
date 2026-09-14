@@ -121,7 +121,7 @@ committed `HEAD` into a new temporary directory, require no cloud credentials, a
 not contact BigQuery after dependency installation.
 
 ```bash
-SOURCE_CHECKOUT='/Users/christinaperrone/Documents/Claude/Projects/Data Design Dynamics/portfolio-projects/marketing-measurement'
+SOURCE_CHECKOUT="$(pwd)"
 RELEASE_COPY="$(mktemp -d "${TMPDIR:-/tmp}/marketing-measurement-release.XXXXXX")"
 git -C "$SOURCE_CHECKOUT" archive HEAD | tar -x -C "$RELEASE_COPY"
 cd "$RELEASE_COPY"
