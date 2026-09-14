@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.routes import integrations, kpis, models, scenarios
 from api.schemas import ErrorResponse, HealthResponse
@@ -51,6 +52,19 @@ async def api_validation_error(
 ) -> JSONResponse:
     body = ErrorResponse(code=error.code, message=error.message, details=error.details)
     return JSONResponse(status_code=422, content=body.model_dump())
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error(
+    _request: Request, error: StarletteHTTPException
+) -> JSONResponse:
+    """Return a safe stable shape for routing failures without echoing internals."""
+    code, message = {
+        404: ("not_found", "Requested resource was not found"),
+        405: ("method_not_allowed", "Requested method is not allowed"),
+    }.get(error.status_code, ("http_error", "HTTP request failed"))
+    body = ErrorResponse(code=code, message=message, details={"status": error.status_code})
+    return JSONResponse(status_code=error.status_code, content=body.model_dump())
 
 
 @app.get("/api/v1/health", response_model=HealthResponse, tags=["health"])

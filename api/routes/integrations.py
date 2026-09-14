@@ -32,7 +32,7 @@ def audience_quality(page: Page = 1, page_size: PageSize = 100) -> dict[str, obj
         "page": page,
         "page_size": page_size,
         "total": total,
-        "evidence": _service.synthetic_evidence("synthetic audience quality fixture v1"),
+        "evidence": _service.synthetic_evidence("integration"),
     }
 
 
@@ -48,5 +48,5 @@ def health(page: Page = 1, page_size: PageSize = 100) -> dict[str, object]:
         "page": page,
         "page_size": page_size,
         "total": total,
-        "evidence": _service.synthetic_evidence("synthetic integration health fixture v1"),
+        "evidence": _service.synthetic_evidence("integration"),
     }

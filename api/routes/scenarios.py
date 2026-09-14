@@ -28,5 +28,5 @@ def budget_scenario(request: BudgetScenarioRequest) -> dict[str, object]:
             request.capacities,
             request.expected_incremental_value,
         ),
-        "evidence": _service.synthetic_evidence("synthetic budget allocation scenario v1"),
+        "evidence": _service.synthetic_evidence("budget"),
     }

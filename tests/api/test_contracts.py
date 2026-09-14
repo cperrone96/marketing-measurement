@@ -2,15 +2,41 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+from pathlib import Path
+
+import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from api.main import app
+from api.repository import ArtifactRepository
+from api.services import MarketingMeasurementService
+
+
+class APIClient:
+    """Small synchronous adapter over httpx's in-process ASGI transport."""
+
+    def request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
+        async def send() -> httpx.Response:
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as client:
+                return await client.request(method, path, **kwargs)
+
+        return asyncio.run(send())
+
+    def get(self, path: str, **kwargs: object) -> httpx.Response:
+        return self.request("GET", path, **kwargs)
+
+    def post(self, path: str, **kwargs: object) -> httpx.Response:
+        return self.request("POST", path, **kwargs)
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> APIClient:
+    return APIClient()
 
 
 def assert_evidence(response: dict[str, object], evidence_type: str) -> None:
@@ -22,7 +48,7 @@ def assert_evidence(response: dict[str, object], evidence_type: str) -> None:
     assert evidence["limitations"]
 
 
-def test_health_contract(client: TestClient) -> None:
+def test_health_contract(client: APIClient) -> None:
     response = client.get("/api/v1/health")
 
     assert response.status_code == 200
@@ -30,7 +56,7 @@ def test_health_contract(client: TestClient) -> None:
 
 
 def test_sources_explicitly_separate_observed_and_synthetic_evidence(
-    client: TestClient,
+    client: APIClient,
 ) -> None:
     response = client.get("/api/v1/sources")
 
@@ -57,7 +83,7 @@ def test_sources_explicitly_separate_observed_and_synthetic_evidence(
     ],
 )
 def test_collection_contracts_include_paginated_evidence(
-    client: TestClient, path: str, evidence_type: str
+    client: APIClient, path: str, evidence_type: str
 ) -> None:
     response = client.get(path)
 
@@ -70,7 +96,7 @@ def test_collection_contracts_include_paginated_evidence(
 
 
 def test_funnel_accepts_bounded_dates_and_paginates_first_last_empty_and_oversized_pages(
-    client: TestClient,
+    client: APIClient,
 ) -> None:
     query = {"start_date": "2020-11-01", "end_date": "2021-01-31", "page_size": 1}
     first = client.get("/api/v1/funnel", params=query)
@@ -98,7 +124,7 @@ def test_funnel_accepts_bounded_dates_and_paginates_first_last_empty_and_oversiz
     ],
 )
 def test_every_collection_supports_first_last_empty_and_oversized_pages(
-    client: TestClient, path: str
+    client: APIClient, path: str
 ) -> None:
     first = client.get(path, params={"page": 1, "page_size": 1})
     total = first.json()["total"]
@@ -123,7 +149,7 @@ def test_every_collection_supports_first_last_empty_and_oversized_pages(
     ],
 )
 def test_collection_filters_reject_invalid_windows_and_pagination(
-    client: TestClient, params: dict[str, object]
+    client: APIClient, params: dict[str, object]
 ) -> None:
     response = client.get("/api/v1/cohorts", params=params)
 
@@ -131,7 +157,7 @@ def test_collection_filters_reject_invalid_windows_and_pagination(
     assert set(response.json()) == {"code", "message", "details"}
 
 
-def test_model_contract_is_reviewed_evidence_without_model_object(client: TestClient) -> None:
+def test_model_contract_is_reviewed_evidence_without_model_object(client: APIClient) -> None:
     response = client.get("/api/v1/models/conversion")
 
     assert response.status_code == 200
@@ -157,7 +183,7 @@ def test_model_contract_is_reviewed_evidence_without_model_object(client: TestCl
     ],
 )
 def test_budget_rejects_invalid_inputs_with_structured_errors(
-    client: TestClient, payload: object
+    client: APIClient, payload: object
 ) -> None:
     response = client.post("/api/v1/scenarios/budget", json=payload)
 
@@ -166,7 +192,7 @@ def test_budget_rejects_invalid_inputs_with_structured_errors(
 
 
 def test_budget_honors_cent_precision_minimum_capacity_and_synthetic_boundary(
-    client: TestClient,
+    client: APIClient,
 ) -> None:
     payload = {
         "total_budget": "1.00",
@@ -178,11 +204,13 @@ def test_budget_honors_cent_precision_minimum_capacity_and_synthetic_boundary(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["allocations"] == {"channel_aurora": 0.7, "channel_birch": 0.3}
+    assert body["allocations"] == {"channel_aurora": "0.70", "channel_birch": "0.30"}
+    assert body["total_budget"] == "1.00"
+    assert body["estimated_incremental_value"] == "1.31"
     assert_evidence(body, "synthetic")
 
 
-def test_budget_rejects_capacity_failure(client: TestClient) -> None:
+def test_budget_rejects_capacity_failure(client: APIClient) -> None:
     response = client.post(
         "/api/v1/scenarios/budget",
         json={
@@ -197,7 +225,7 @@ def test_budget_rejects_capacity_failure(client: TestClient) -> None:
     assert response.json()["code"] == "invalid_budget_scenario"
 
 
-def test_budget_accepts_exact_minimum_and_capacity_boundaries(client: TestClient) -> None:
+def test_budget_accepts_exact_minimum_and_capacity_boundaries(client: APIClient) -> None:
     response = client.post(
         "/api/v1/scenarios/budget",
         json={
@@ -210,6 +238,60 @@ def test_budget_accepts_exact_minimum_and_capacity_boundaries(client: TestClient
 
     assert response.status_code == 200
     assert response.json()["allocations"] == {
-        "channel_aurora": 0.1,
-        "channel_birch": 0.2,
+        "channel_aurora": "0.10",
+        "channel_birch": "0.20",
     }
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "code", "message"),
+    [
+        ("GET", "/api/v1/not-a-route", "not_found", "Requested resource was not found"),
+        (
+            "POST",
+            "/api/v1/health",
+            "method_not_allowed",
+            "Requested method is not allowed",
+        ),
+    ],
+)
+def test_http_errors_use_safe_structured_contracts(
+    client: APIClient, method: str, path: str, code: str, message: str
+) -> None:
+    response = client.request(method, path)
+
+    assert response.status_code in {404, 405}
+    assert response.json() == {
+        "code": code,
+        "message": message,
+        "details": {"status": response.status_code},
+    }
+
+
+def test_synthetic_provenance_hashes_the_committed_generator_artifact(
+    client: APIClient,
+) -> None:
+    response = client.get("/api/v1/integrations/health")
+    expected = hashlib.sha256(
+        Path("src/marketing_measurement/simulation/integration.py").read_bytes()
+    ).hexdigest()
+
+    assert response.status_code == 200
+    assert response.json()["evidence"]["provenance"] == {
+        "artifact": "deterministic integration generator",
+        "sha256": expected,
+    }
+
+
+def test_synthetic_provenance_changes_when_its_generator_artifact_changes(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "src/marketing_measurement/simulation/integration.py"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text("first generator", encoding="utf-8")
+    service = MarketingMeasurementService(ArtifactRepository(tmp_path))
+    first = service.synthetic_evidence("integration")
+    artifact.write_text("changed generator", encoding="utf-8")
+    second = service.synthetic_evidence("integration")
+
+    assert first["provenance"]["sha256"] != second["provenance"]["sha256"]

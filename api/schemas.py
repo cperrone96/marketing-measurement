@@ -149,11 +149,23 @@ class BudgetScenarioRequest(APIModel):
     expected_incremental_value: dict[str, Decimal] = Field(min_length=1)
 
 
+class BudgetSensitivityItem(APIModel):
+    scenario: str
+    varied_channel: str
+    value_multiplier: float
+    estimated_incremental_value: str
+    ranking_changed_from_baseline: bool
+    allocation_changed_from_baseline: bool
+    decision_summary: str
+
+
 class BudgetScenarioResponse(APIModel):
-    allocations: dict[str, float]
-    total_budget: float
-    estimated_incremental_value: float
+    """Money is always a two-decimal string; never an ambiguous JSON float."""
+
+    allocations: dict[str, str]
+    total_budget: str
+    estimated_incremental_value: str
     assumptions: list[str]
-    sensitivity: list[dict[str, bool | float | str]]
+    sensitivity: list[BudgetSensitivityItem]
     robustness_summary: str
     evidence: Evidence

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from functools import cached_property
 from pathlib import Path
@@ -11,7 +12,8 @@ from typing import Any, cast
 class ArtifactRepository:
     """Loads only reviewed artifacts; it never queries a cloud data source."""
 
-    _root = Path(__file__).resolve().parents[1]
+    def __init__(self, root: Path | None = None) -> None:
+        self._root = root or Path(__file__).resolve().parents[1]
 
     @cached_property
     def findings(self) -> dict[str, Any]:
@@ -41,3 +43,7 @@ class ArtifactRepository:
     def _load(self, relative_path: str) -> Any:
         with (self._root / relative_path).open(encoding="utf-8") as artifact:
             return json.load(artifact)
+
+    def source_sha256(self, relative_path: str) -> str:
+        """Return the committed generator artifact digest without exposing its path."""
+        return hashlib.sha256((self._root / relative_path).read_bytes()).hexdigest()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
@@ -23,6 +22,17 @@ from marketing_measurement.simulation.integration import (
 MIN_DATE = date(2020, 11, 1)
 MAX_DATE = date(2021, 1, 31)
 SUPPORTED_BUDGET_CHANNELS = frozenset({"channel_aurora", "channel_birch"})
+_CENT = Decimal("0.01")
+_SYNTHETIC_GENERATORS = {
+    "integration": (
+        "deterministic integration generator",
+        "src/marketing_measurement/simulation/integration.py",
+    ),
+    "budget": (
+        "deterministic budget scenario generator",
+        "src/marketing_measurement/analysis/budget.py",
+    ),
+}
 
 _PUBLIC_LIMITATIONS = [
     "The public sample is old, obfuscated, ecommerce-specific, and educational only.",
@@ -64,12 +74,15 @@ class MarketingMeasurementService:
             "limitations": _PUBLIC_LIMITATIONS,
         }
 
-    def synthetic_evidence(self, artifact: str) -> dict[str, Any]:
-        digest = hashlib.sha256(artifact.encode()).hexdigest()
+    def synthetic_evidence(self, generator: str) -> dict[str, Any]:
+        artifact, source_artifact = _SYNTHETIC_GENERATORS[generator]
         return {
             "evidence_type": "synthetic",
             "source_date_or_window": f"deterministic scenario seed {SYNTHETIC_SEED}",
-            "provenance": {"artifact": artifact, "sha256": digest},
+            "provenance": {
+                "artifact": artifact,
+                "sha256": self._repository.source_sha256(source_artifact),
+            },
             "limitations": _SYNTHETIC_LIMITATIONS,
         }
 
@@ -92,9 +105,7 @@ class MarketingMeasurementService:
                 {
                     "name": "Deterministic integration demonstrations",
                     "description": "Synthetic records used only for integration and scenario examples.",
-                    "evidence": self.synthetic_evidence(
-                        "synthetic integration fixture v1"
-                    ),
+                    "evidence": self.synthetic_evidence("integration"),
                 },
             ],
         )
@@ -220,17 +231,22 @@ class MarketingMeasurementService:
                 {"reason": str(error)},
             ) from error
         return {
-            "allocations": {name: float(amount) for name, amount in scenario.allocations.items()},
-            "total_budget": scenario.total_budget,
-            "estimated_incremental_value": scenario.estimated_incremental_value,
+            "allocations": {
+                name: _money_string(float(amount))
+                for name, amount in scenario.allocations.items()
+            },
+            "total_budget": _money_string(scenario.total_budget),
+            "estimated_incremental_value": _money_string(
+                scenario.estimated_incremental_value
+            ),
             "assumptions": list(scenario.assumptions),
             "sensitivity": [
                 {
                     "scenario": str(row.scenario),
                     "varied_channel": str(row.varied_channel),
                     "value_multiplier": float(str(row.value_multiplier)),
-                    "estimated_incremental_value": float(
-                        str(row.estimated_incremental_value)
+                    "estimated_incremental_value": _money_string(
+                        float(str(row.estimated_incremental_value))
                     ),
                     "ranking_changed_from_baseline": bool(row.ranking_changed_from_baseline),
                     "allocation_changed_from_baseline": bool(row.allocation_changed_from_baseline),
@@ -283,3 +299,8 @@ class MarketingMeasurementService:
             "denominator": denominator,
             "rate": numerator / denominator if denominator else None,
         }
+
+
+def _money_string(value: float) -> str:
+    """Encode a cent-validated Task 6 output at a fixed two-decimal scale."""
+    return format(Decimal(str(value)).quantize(_CENT), "f")

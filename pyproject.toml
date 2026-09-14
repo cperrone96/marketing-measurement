@@ -21,7 +21,6 @@ dependencies = [
 dev = [
     "duckdb>=1.1,<2",
     "httpx>=0.27,<1",
-    "httpx2>=2,<3",
     "ipykernel>=6.29,<8",
     "mypy>=1.13,<2",
     "nbconvert>=7.16,<8",
