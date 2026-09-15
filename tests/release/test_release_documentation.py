@@ -227,6 +227,29 @@ def test_notebook_smoke_requires_freshly_created_generated_evidence(
         verify_generated_evidence(workspace, canonical)
 
 
+def test_notebook_smoke_allows_only_negligible_cross_platform_model_drift(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "canonical"
+    workspace = tmp_path / "workspace"
+    relative = Path(
+        "data/derived/ga4_public_sample/conversion_model_evaluation.json"
+    )
+    for root, metric in ((canonical, 0.123456), (workspace, 0.123461)):
+        artifact = root / relative
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text(json.dumps({"metric": metric}) + "\n")
+    for root in (canonical, workspace):
+        summary = root / "data/derived/ga4_public_sample/findings_summary.json"
+        summary.write_text('{"status": "reviewed"}\n')
+
+    verify_generated_evidence(workspace, canonical)
+
+    (workspace / relative).write_text(json.dumps({"metric": 0.1236}) + "\n")
+    with pytest.raises(EvidenceIntegrityError, match="material numeric evidence drift"):
+        verify_generated_evidence(workspace, canonical)
+
+
 def test_notebook_smoke_rejects_tampered_tracked_evidence_before_execution(
     tmp_path: Path,
 ) -> None:

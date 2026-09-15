@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import cast
 
 DEFAULT_NOTEBOOKS = (
     "notebooks/01_public_data_findings.ipynb",
@@ -20,6 +21,8 @@ GENERATED_EVIDENCE = (
     "data/derived/ga4_public_sample/findings_summary.json",
     "data/derived/ga4_public_sample/conversion_model_evaluation.json",
 )
+MODEL_EVIDENCE = "data/derived/ga4_public_sample/conversion_model_evaluation.json"
+NUMERIC_TOLERANCE = 1e-5
 
 
 class EvidenceIntegrityError(RuntimeError):
@@ -111,7 +114,7 @@ def normalize_notebook(notebook: dict[str, object]) -> dict[str, object]:
         language_info = metadata.get("language_info")
         if isinstance(language_info, dict):
             language_info.pop("version", None)
-    return normalized
+    return cast(dict[str, object], normalized)
 
 
 def verify_committed_notebooks_are_clean(root: Path) -> None:
@@ -170,7 +173,12 @@ def prepare_generated_evidence(workspace: Path) -> None:
 
 
 def verify_generated_evidence(workspace: Path, canonical_root: Path) -> None:
-    """Require each output to be freshly created and byte-identical to canonical."""
+    """Require fresh outputs and reject material evidence drift.
+
+    Descriptive evidence remains byte-identical. Model metrics are compared
+    structurally with a narrow tolerance because identical pinned scientific-Python
+    versions can differ by a final floating-point digit across operating systems.
+    """
     for relative_artifact in GENERATED_EVIDENCE:
         generated = workspace / relative_artifact
         reviewed = canonical_root / relative_artifact
@@ -178,11 +186,49 @@ def verify_generated_evidence(workspace: Path, canonical_root: Path) -> None:
             raise EvidenceIntegrityError(
                 f"notebook-generated evidence was not freshly created: {relative_artifact}"
             )
-        if generated.read_bytes() != reviewed.read_bytes():
+        if relative_artifact == MODEL_EVIDENCE:
+            generated_json = json.loads(generated.read_text(encoding="utf-8"))
+            reviewed_json = json.loads(reviewed.read_text(encoding="utf-8"))
+            try:
+                _assert_json_close(generated_json, reviewed_json, relative_artifact)
+            except AssertionError as error:
+                raise EvidenceIntegrityError(str(error)) from error
+        elif generated.read_bytes() != reviewed.read_bytes():
             raise EvidenceIntegrityError(
                 f"notebook-generated evidence differs from reviewed artifact: "
                 f"{relative_artifact}"
             )
+
+
+def _assert_json_close(generated: object, reviewed: object, path: str) -> None:
+    """Compare JSON recursively while allowing only negligible numeric drift."""
+    if isinstance(reviewed, bool) or reviewed is None or isinstance(reviewed, str):
+        assert generated == reviewed, f"material evidence drift at {path}"
+        return
+    if isinstance(reviewed, (int, float)):
+        assert isinstance(generated, (int, float)) and not isinstance(generated, bool), (
+            f"evidence type drift at {path}"
+        )
+        assert abs(float(generated) - float(reviewed)) <= NUMERIC_TOLERANCE, (
+            f"material numeric evidence drift at {path}: "
+            f"generated={generated}, reviewed={reviewed}"
+        )
+        return
+    if isinstance(reviewed, list):
+        assert isinstance(generated, list) and len(generated) == len(reviewed), (
+            f"evidence structure drift at {path}"
+        )
+        for index, (generated_item, reviewed_item) in enumerate(
+            zip(generated, reviewed, strict=True)
+        ):
+            _assert_json_close(generated_item, reviewed_item, f"{path}[{index}]")
+        return
+    assert isinstance(reviewed, dict) and isinstance(generated, dict), (
+        f"evidence structure drift at {path}"
+    )
+    assert generated.keys() == reviewed.keys(), f"evidence key drift at {path}"
+    for key in reviewed:
+        _assert_json_close(generated[key], reviewed[key], f"{path}.{key}")
 
 
 def main() -> int:
