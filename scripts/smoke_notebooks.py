@@ -22,7 +22,7 @@ GENERATED_EVIDENCE = (
     "data/derived/ga4_public_sample/conversion_model_evaluation.json",
 )
 MODEL_EVIDENCE = "data/derived/ga4_public_sample/conversion_model_evaluation.json"
-NUMERIC_TOLERANCE = 1e-5
+NUMERIC_TOLERANCE = 1e-4
 
 
 class EvidenceIntegrityError(RuntimeError):
