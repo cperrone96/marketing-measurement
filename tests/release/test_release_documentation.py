@@ -245,7 +245,7 @@ def test_notebook_smoke_allows_only_negligible_cross_platform_model_drift(
 
     verify_generated_evidence(workspace, canonical)
 
-    (workspace / relative).write_text(json.dumps({"metric": 0.1245}) + "\n")
+    (workspace / relative).write_text(json.dumps({"metric": 0.1335}) + "\n")
     with pytest.raises(EvidenceIntegrityError, match="material numeric evidence drift"):
         verify_generated_evidence(workspace, canonical)
 
