@@ -12,7 +12,7 @@ Existing Python application using FastAPI contracts and a delegated Plotly Dash 
 
 ## Users
 
-- Hiring managers and recruiters evaluating whether the portfolio demonstrates decision-ready data science, analytics engineering, and product communication.
+- Portfolio reviewers and prospective clients evaluating whether the portfolio demonstrates decision-ready data science, analytics engineering, and product communication.
 - Business stakeholders reviewing acquisition, customer-journey, measurement, integration-health, and budget decisions without needing to inspect notebooks or source code first.
 
 ## Product Purpose
