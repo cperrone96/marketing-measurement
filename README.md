@@ -115,10 +115,9 @@ redistributable fixtures, with DuckDB as the default test engine.
 
 ## Clean setup and verification
 
-Prerequisites: Git and Python 3.12. Until this repository is published, the exact
-runnable source is the current local Git checkout. The commands below export its
-committed `HEAD` into a new temporary directory, require no cloud credentials, and do
-not contact BigQuery after dependency installation.
+Prerequisites: Git and Python 3.12. Run these commands from a clone of this
+repository. They export its committed `HEAD` into a new temporary directory, require
+no cloud credentials, and do not contact BigQuery after dependency installation.
 
 ```bash
 SOURCE_CHECKOUT="$(pwd)"
