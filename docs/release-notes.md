@@ -1,5 +1,21 @@
 # Release notes
 
+## v0.2.0 (unreleased): analysis review
+
+- Attribution: simplified GA4 default channel grouping and a self-referral
+  sensitivity. 1,381 of 3,230 converted sessions include a
+  `*.googlemerchandisestore.com / referral` touch, which takes 980 last-touch
+  credits as observed; with those touches removed the four rules largely agree.
+  `time_decay` is now documented as position decay (one-touch half-life).
+- Funnel: a coverage check shows the strict same-session funnel keeps 2,847 of at
+  least 4,844 purchase sessions; 1,997 purchases have no same-session add-to-cart.
+- Model: a returning-visitor rule baseline and 95% cluster-bootstrap intervals.
+  PR-AUC 0.041429 (0.027371 to 0.067842) against 0.024040 for the rule; the
+  existing model metrics are unchanged. The model card records that 88.14% of
+  sessions have an unattributed source because of the extraction query.
+- Reproducibility: pinned `requirements.txt`, committed notebook outputs, `make
+  notebooks` and `make figures`, and a README figure.
+
 ## v0.1.0 — 2026-09-11
 
 First portfolio-ready release of the Marketing Measurement Decision Studio.
@@ -45,15 +61,6 @@ First portfolio-ready release of the Marketing Measurement Decision Studio.
 - On 7,245 untouched held-out sessions, logistic regression achieved 0.041429 PR-AUC
   versus a 0.013941 no-skill baseline. This supports an educational review-queue
   workflow, not deployment or a claim of campaign lift.
-
-### Résumé-ready project bullet (pending evidence-ledger acceptance)
-
-> Built an end-to-end marketing measurement decision product from Google's public,
-> obfuscated GA4 ecommerce sample (Nov 2020–Jan 2021), using BigQuery SQL, tested
-> Python analytics, leakage-safe grouped machine learning, FastAPI, and Plotly Dash;
-> quantified 250,206 / 333,683 viewed sessions as engaged (74.98%) and translated
-> funnel, cohort, and descriptive-attribution evidence into testable journey priorities,
-> while keeping synthetic integration and budget scenarios separate from observed results.
 
 ### Reproduction evidence
 

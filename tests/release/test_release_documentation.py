@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -19,7 +20,6 @@ from scripts.smoke_notebooks import (
 
 ROOT = Path(__file__).parents[2]
 REQUIRED_DOCS = (
-    "README.md",
     "docs/lineage.md",
     "docs/metric-dictionary.md",
     "docs/uat.md",
@@ -33,183 +33,50 @@ def test_release_documents_exist_and_keep_evidence_boundaries_visible() -> None:
         text = (ROOT / relative_path).read_text(encoding="utf-8")
         assert "public observed" in text.lower(), relative_path
         assert "synthetic" in text.lower(), relative_path
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert "public" in readme
+    assert "synthetic" in readme
 
 
-def test_readme_headline_claims_match_reviewed_artifact() -> None:
-    findings = json.loads(
-        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
-    )
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-
-    expected_fragments = (
-        (
-            f"{findings['funnel']['engaged_sessions']:,} of "
-            f"{findings['funnel']['views']:,}"
-        ),
-        (
-            f"{findings['day_7_retention']['retained_users']:,} of "
-            f"{findings['day_7_retention']['cohort_users']:,}"
-        ),
-        f"{findings['attribution']['eligible_converted_sessions']:,}",
-        findings["source"]["coverage_start"],
-        findings["source"]["coverage_end"],
-        "descriptive attribution; not causal",
-    )
-    for fragment in expected_fragments:
-        assert fragment in readme
+def test_readme_key_results_match_generated_evidence() -> None:
+    section = _readme_key_results()
+    for fragment in _expected_key_result_fragments():
+        assert fragment in section, fragment
 
 
-def test_every_readme_finding_matches_authoritative_evidence_and_is_traceable() -> None:
-    findings = json.loads(
-        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
-    )
-    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
-    readme = (ROOT / "README.md").read_text()
-    sections = {
-        number: re.search(
-            rf"### {number}\. .*?(?=\n### |\n## )", readme, flags=re.DOTALL
-        ).group(0)
-        for number in range(1, 5)
-    }
+def test_readme_key_results_reject_a_falsified_number() -> None:
+    fragment = _pct(_model_evidence()["metrics"]["capacity_operating_point"]["precision"])
+    falsified = _readme_key_results().replace(fragment, "99.99%")
 
-    funnel = findings["funnel"]
-    funnel_fragments = (
-        f"{funnel['engaged_sessions']:,} of {funnel['views']:,}",
-        f"{funnel['engagement_rate']:.2%}",
-        f"{funnel['add_to_carts']:,}",
-        f"{funnel['add_to_cart_rate']:.2%}",
-        f"{funnel['checkouts']:,}",
-        f"{funnel['checkout_rate']:.2%}",
-        f"{funnel['purchases']:,}",
-        f"{funnel['purchase_rate']:.2%}",
-    )
-    retention = findings["day_7_retention"]
-    retention_fragments = (
-        f"{retention['eligible_cohorts']:,}",
-        f"{retention['retained_users']:,} of {retention['cohort_users']:,}",
-        f"{retention['rate']:.2%}",
-    )
-    attribution = findings["attribution"]
-    attribution_fragments = (
-        f"{attribution['eligible_converted_sessions']:,}",
-        "2020-12-01 through 2021-01-31",
-        f"{attribution['all_channel_credits']['first_touch']['google / organic']:,.0f}",
-        f"{attribution['all_channel_credits']['last_touch']['google / organic']:,.0f}",
-        attribution["interpretation"],
-    )
-    for section, fragments in zip(
-        (sections[1], sections[2], sections[3]),
-        (funnel_fragments, retention_fragments, attribution_fragments),
-        strict=True,
+    missing = [item for item in _expected_key_result_fragments() if item not in falsified]
+    assert missing and all(fragment in item for item in missing)
+
+
+def test_readme_figure_is_committed_and_referenced() -> None:
+    figure = "docs/figures/attribution_by_channel_group.png"
+    assert (ROOT / figure).is_file()
+    assert f"]({figure})" in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def test_model_card_matches_model_evidence() -> None:
+    card = (ROOT / "docs/models/conversion-model-card.md").read_text(encoding="utf-8")
+    metrics = _model_evidence()["metrics"]
+    capacity = metrics["capacity_operating_point"]
+    intervals = metrics["selected_model_held_out_ci95"]
+    for value in (
+        metrics["logistic_regression_held_out"]["pr_auc"],
+        metrics["no_skill_held_out"]["pr_auc"],
+        metrics["returning_visitor_rule_held_out"]["pr_auc"],
+        intervals["pr_auc_lower"],
+        intervals["pr_auc_upper"],
+        metrics["pr_auc_gain_over_returning_rule"]["estimate"],
+        capacity["threshold"],
+        capacity["precision"],
+        capacity["recall"],
     ):
-        assert "**Evidence:** Public observed" in section
-        assert "**Decision:**" in section
-        assert "**Limitations:**" in section
-        assert "**Trace:**" in section
-        for fragment in fragments:
-            assert fragment in section
-    _assert_standard_finding_fields(sections[4])
-    _assert_attribution_scope_matches(sections[3], findings)
-    _assert_model_claim_matches(sections[4], model_card)
-    _assert_decisions_and_limitations(sections)
-
-    required_trace_targets = {
-        1: ("sql/bigquery/funnel_daily_by_channel.sql", "notebooks/01_public_data_findings.ipynb"),
-        2: ("sql/bigquery/cohort_retention.sql", "notebooks/01_public_data_findings.ipynb"),
-        3: ("sql/bigquery/conversion_channel_paths.sql", "src/marketing_measurement/analysis/attribution.py"),
-        4: ("sql/bigquery/conversion_model_sessions.sql", "docs/models/conversion-model-card.md"),
-    }
-    for number, targets in required_trace_targets.items():
-        for target in targets:
-            assert f"]({target})" in sections[number]
-            assert (ROOT / target).is_file()
-
-
-def test_false_readme_model_pr_auc_is_rejected() -> None:
-    readme = (ROOT / "README.md").read_text()
-    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
-    model_section = re.search(
-        r"### 4\. .*?(?=\n### |\n## )", readme, flags=re.DOTALL
-    ).group(0)
-    falsified = model_section.replace("0.041429 PR-AUC", "0.999999 PR-AUC")
-
-    with pytest.raises(AssertionError):
-        _assert_model_claim_matches(falsified, model_card)
-
-
-def test_false_model_flagged_share_is_rejected() -> None:
-    model_section = _readme_finding(4)
-    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
-    falsified = model_section.replace("4.38%", "99%")
-
-    with pytest.raises(AssertionError):
-        _assert_model_claim_matches(falsified, model_card)
-
-
-def test_false_model_sample_percentage_is_rejected() -> None:
-    model_section = _readme_finding(4)
-    model_card = (ROOT / "docs/models/conversion-model-card.md").read_text()
-    falsified = model_section.replace("10% user-level sample", "99% user-level sample")
-
-    with pytest.raises(AssertionError):
-        _assert_model_claim_matches(falsified, model_card)
-
-
-def test_false_attribution_lookback_is_rejected() -> None:
-    findings = json.loads(
-        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
-    )
-    falsified = _readme_finding(3).replace("30-day", "300-day")
-
-    with pytest.raises(AssertionError):
-        _assert_attribution_scope_matches(falsified, findings)
-
-
-def test_false_attribution_method_count_is_rejected() -> None:
-    findings = json.loads(
-        (ROOT / "data/derived/ga4_public_sample/findings_summary.json").read_text()
-    )
-    falsified = _readme_finding(3).replace(
-        "four attribution methods", "forty attribution methods"
-    )
-
-    with pytest.raises(AssertionError):
-        _assert_attribution_scope_matches(falsified, findings)
-
-
-@pytest.mark.parametrize(
-    ("finding", "replacement"),
-    (
-        (3, "- **Decision:** Start immediate live targeting from attribution."),
-        (4, "- **Decision:** Deploy immediate live targeting without further review."),
-    ),
-)
-def test_unsupported_readme_decisions_are_rejected(
-    finding: int, replacement: str
-) -> None:
-    sections = {number: _readme_finding(number) for number in range(1, 5)}
-    sections[finding] = re.sub(
-        r"- \*\*Decision:\*\*.*?(?=\n- \*\*Limitations:)",
-        replacement,
-        sections[finding],
-        flags=re.DOTALL,
-    )
-
-    with pytest.raises(AssertionError):
-        _assert_decisions_and_limitations(sections)
-
-
-def test_unsupported_readme_limitations_are_rejected() -> None:
-    sections = {number: _readme_finding(number) for number in range(1, 5)}
-    sections[4] = re.sub(
-        r"- \*\*Limitations:\*\*.*?(?=\n- \*\*Trace:)",
-        "- **Limitations:** No meaningful limitations.",
-        sections[4],
-        flags=re.DOTALL,
-    )
-
-    with pytest.raises(AssertionError):
-        _assert_decisions_and_limitations(sections)
+        assert f"{value:.6f}" in card, value
+    assert f"{capacity['flagged_sessions']:,} of {capacity['held_out_sessions']:,}" in card
+    assert f"{metrics['feature_coverage']['session_source_unattributed_share']:.2%}" in card
 
 
 def test_notebook_smoke_requires_freshly_created_generated_evidence(
@@ -327,126 +194,77 @@ def test_runtime_has_real_ingest_command_and_configurable_billing_project() -> N
     assert "--project-id" in retrieval
 
 
-def _model_card_value(model_card: str, row_label: str, column: str) -> str:
-    header = next(line for line in model_card.splitlines() if "| ROC-AUC | PR-AUC |" in line)
-    columns = [value.strip() for value in header.strip("|").split("|")]
-    row = next(line for line in model_card.splitlines() if f"| {row_label} |" in line)
-    values = [value.strip() for value in row.strip("|").split("|")]
-    return values[columns.index(column)]
+def _findings() -> dict[str, Any]:
+    path = ROOT / "data/derived/ga4_public_sample/findings_summary.json"
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
-def _assert_standard_finding_fields(section: str) -> None:
-    assert "**Evidence:** Public observed" in section
-    assert "**Decision:**" in section
-    assert "**Limitations:**" in section
-    assert "**Trace:**" in section
+def _model_evidence() -> dict[str, Any]:
+    path = ROOT / "data/derived/ga4_public_sample/conversion_model_evaluation.json"
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
-def _assert_model_claim_matches(section: str, model_card: str) -> None:
-    sample = re.search(r"deterministically samples ([\d.]+)% of users", model_card)
-    assert sample is not None
-    sample_percentage = sample.group(1)
-    capacity = re.search(
-        r"threshold is ([0-9]+(?:\.[0-9]+)?).*?flags ([\d,]+) of ([\d,]+) "
-        r"held-out sessions\s+\(([0-9]+(?:\.[0-9]+)?) per\s+1,000\), with "
-        r"precision ([0-9]+(?:\.[0-9]+)?) and recall ([0-9]+(?:\.[0-9]+)?)",
-        model_card,
-        flags=re.DOTALL,
-    )
-    assert capacity is not None
-    threshold, flagged, holdout, _per_thousand, precision, recall = capacity.groups()
-    flagged_count = int(flagged.replace(",", ""))
-    holdout_count = int(holdout.replace(",", ""))
-    confusion = re.search(
-        r"([\d,]+) false negatives, and ([\d,]+) true positives", model_card
-    )
-    assert confusion is not None
-    conversions = sum(int(value.replace(",", "")) for value in confusion.groups())
-    expected_fragments = (
-        f"deterministic {sample_percentage}% user-level sample",
-        _model_card_value(model_card, "Logistic regression, held out", "PR-AUC"),
-        _model_card_value(model_card, "No-skill prevalence, held out", "PR-AUC"),
-        f"{holdout_count:,}",
-        threshold,
-        f"{flagged_count:,}",
-        f"{flagged_count / holdout_count:.2%}",
-        f"{float(precision):.2%}",
-        f"{float(recall):.2%}",
-        f"{conversions:,}",
-    )
-    for fragment in expected_fragments:
-        assert fragment in section
-
-
-def _assert_attribution_scope_matches(
-    section: str, findings: dict[str, object]
-) -> None:
-    attribution = findings["attribution"]
-    assert isinstance(attribution, dict)
-    eligibility = str(attribution["eligibility"])
-    lookback = re.search(r"full (\d+)-day source-window lookback", eligibility)
-    assert lookback is not None
-    credit_totals = attribution["credit_totals"]
-    assert isinstance(credit_totals, dict)
-    method_count = len(credit_totals)
-    number_words = {
-        1: "one",
-        2: "two",
-        3: "three",
-        4: "four",
-        5: "five",
-        6: "six",
-        7: "seven",
-        8: "eight",
-        9: "nine",
-        10: "ten",
-    }
-    assert method_count in number_words
-    normalized = " ".join(section.lower().split())
-    assert (
-        f"complete {lookback.group(1)}-day source-window lookback" in normalized
-    )
-    assert f"the {number_words[method_count]} attribution methods" in normalized
-
-
-def _readme_finding(number: int) -> str:
-    readme = (ROOT / "README.md").read_text()
-    match = re.search(
-        rf"### {number}\. .*?(?=\n### |\n## )", readme, flags=re.DOTALL
-    )
+def _readme_key_results() -> str:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    match = re.search(r"## Key results\n.*?(?=\n## )", readme, flags=re.DOTALL)
     assert match is not None
     return match.group(0)
 
 
-def _assert_decisions_and_limitations(sections: dict[int, str]) -> None:
-    required_meaning = {
-        1: (
-            "Prioritize instrumentation and testable journey hypotheses",
-            "engaged-to-cart transition",
-            "descriptive session funnel, not causal evidence",
-            "ordered event progression is not asserted",
-        ),
-        2: (
-            "measurement question requiring explicit lifecycle hypotheses",
-            "current-data validation, not as an assumed growth lever",
-            "public source window",
-            "historic ecommerce context limit generalization",
-        ),
-        3: (
-            "randomized experiments for causal campaign decisions",
-            "descriptive attribution; not causal",
-            "Event-scoped channel data",
-            "unattributed and obfuscated values",
-        ),
-        4: (
-            "requires current governed data, a new validation set, privacy review, and monitoring",
-            "Only 101 held-out conversions",
-            "split key is non-unique",
-            "prediction does not establish lift",
-        ),
-    }
-    forbidden = ("immediate live targeting", "no meaningful limitations")
-    for number, phrases in required_meaning.items():
-        normalized = " ".join(sections[number].lower().split())
-        assert all(" ".join(phrase.lower().split()) in normalized for phrase in phrases)
-        assert all(phrase not in normalized for phrase in forbidden)
+def _pct(value: float) -> str:
+    return f"{value:.2%}"
+
+
+def _expected_key_result_fragments() -> list[str]:
+    """Every README headline number, formatted from the generated evidence."""
+    findings = _findings()
+    funnel = findings["funnel"]
+    coverage = findings["funnel_coverage"]
+    retention = findings["day_7_retention"]
+    attribution = findings["attribution"]
+    groups = attribution["channel_group_credits"]
+    clean = attribution["channel_group_credits_excluding_self_referrals"]
+    self_referral = attribution["self_referral"]
+    metrics = _model_evidence()["metrics"]
+    capacity = metrics["capacity_operating_point"]
+    intervals = metrics["selected_model_held_out_ci95"]
+    gain = metrics["pr_auc_gain_over_returning_rule"]
+    return [
+        findings["source"]["coverage_start"],
+        findings["source"]["coverage_end"],
+        _pct(funnel["add_to_cart_rate"]),
+        f"{funnel['add_to_carts']:,} of {funnel['engaged_sessions']:,}",
+        _pct(funnel["engagement_rate"]),
+        _pct(funnel["checkout_rate"]),
+        _pct(funnel["purchase_rate"]),
+        f"{funnel['view_to_purchase_rate']:.2%} of {funnel['views']:,}",
+        (f"{coverage['strict_funnel_purchases']:,} of at least "
+        f"{coverage['observed_purchase_sessions_lower_bound']:,}"),
+        _pct(coverage["strict_funnel_share"]),
+        f"{coverage['purchases_without_same_session_cart']:,} purchase sessions",
+        _pct(retention["rate"]),
+        f"{retention['retained_users']:,} of {retention['cohort_users']:,}",
+        f"{retention['eligible_cohorts']} first-touch cohorts",
+        (f"{self_referral['converted_sessions_with_self_referral_touch']:,} of "
+        f"{attribution['eligible_converted_sessions']:,} converted sessions"),
+        _pct(self_referral["share_of_converted_sessions"]),
+        f"{self_referral['last_touch_credit_as_observed']:,.0f} last-touch credits",
+        (f"{groups['first_touch']['Organic Search']:,.0f} vs "
+        f"{groups['last_touch']['Organic Search']:,.0f} as observed"),
+        (f"{clean['first_touch']['Organic Search']:,.0f} vs "
+        f"{clean['last_touch']['Organic Search']:,.0f} with self-referrals removed"),
+        (f"PR-AUC {metrics['logistic_regression_held_out']['pr_auc']:.4f} "
+        f"(95% CI {intervals['pr_auc_lower']:.4f} to {intervals['pr_auc_upper']:.4f})"),
+        f"No-skill {metrics['no_skill_held_out']['pr_auc']:.4f}",
+        f"returning-visitor rule {metrics['returning_visitor_rule_held_out']['pr_auc']:.4f}",
+        (f"gain over the rule {gain['estimate']:.4f} "
+        f"(95% CI {gain['ci95_lower']:.4f} to {gain['ci95_upper']:.4f})"),
+        (f"Precision {_pct(capacity['precision'])} "
+        f"(95% CI {_pct(capacity['precision_ci95_lower'])} to "
+        f"{_pct(capacity['precision_ci95_upper'])})"),
+        f"{capacity['lift_over_prevalence']:.2f}x the base rate",
+        f"Flags {capacity['flagged_sessions']:,} of {capacity['held_out_sessions']:,}",
+        f"({_pct(capacity['flagged_share'])})",
+        (f"finds {_pct(capacity['recall'])} of the "
+        f"{capacity['held_out_conversions']:,} held-out conversions"),
+    ]
