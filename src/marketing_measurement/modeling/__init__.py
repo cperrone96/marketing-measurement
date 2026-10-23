@@ -6,6 +6,7 @@ from .conversion import (
     ModelBundle,
     build_feature_matrix,
     evaluate_conversion_model,
+    grouped_bootstrap_intervals,
     train_conversion_model,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "ModelBundle",
     "build_feature_matrix",
     "evaluate_conversion_model",
+    "grouped_bootstrap_intervals",
     "train_conversion_model",
 ]

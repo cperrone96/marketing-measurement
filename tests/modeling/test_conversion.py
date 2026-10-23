@@ -190,3 +190,49 @@ def test_manifest_distinguishes_session_model_data_from_aggregates() -> None:
     assert metadata["queries"]["conversion_model_sessions"]["result_category"] == (
         "identifier_free_session_model_data"
     )
+
+
+def test_report_includes_returning_rule_baseline_and_intervals(
+    training_frame: pd.DataFrame,
+) -> None:
+    features = training_frame.drop(columns="converted")
+    bundle = train_conversion_model(
+        features, training_frame["converted"], training_frame["user_group_bucket"]
+    )
+    report = evaluate_conversion_model(bundle, bundle.test)
+
+    assert set(bundle.heuristic_rates) <= {"new", "returning"}
+    assert set(report.heuristic_metrics) == {"roc_auc", "pr_auc", "brier_score"}
+    for lower, upper in report.bootstrap_intervals.values():
+        assert lower <= upper
+
+
+def test_cluster_bootstrap_keeps_groups_whole_and_is_reproducible() -> None:
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    target = np.tile([1, 0, 0, 0, 0], 40)
+    probability = np.where(target == 1, 0.8, 0.2) + rng.uniform(-0.15, 0.15, 200)
+    heuristic = np.full(200, 0.2)
+    groups = np.repeat(np.arange(40), 5)
+
+    first = conversion.grouped_bootstrap_intervals(
+        target, probability, heuristic, 0.5, groups, replicates=200
+    )
+    second = conversion.grouped_bootstrap_intervals(
+        target, probability, heuristic, 0.5, groups, replicates=200
+    )
+
+    assert first == second
+    assert first["roc_auc"] == pytest.approx((1.0, 1.0))
+    low, high = first["pr_auc_gain_over_heuristic"]
+    assert 0 < low <= high
+
+
+def test_cluster_bootstrap_rejects_mismatched_lengths() -> None:
+    import numpy as np
+
+    with pytest.raises(ValueError, match="equal lengths"):
+        conversion.grouped_bootstrap_intervals(
+            np.array([0, 1]), np.array([0.1]), np.array([0.1, 0.2]), 0.5, np.array([1, 2])
+        )

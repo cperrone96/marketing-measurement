@@ -1,12 +1,13 @@
 # Conversion propensity model card
 
-## Purpose and boundary
+## Purpose
 
-This is an **educational decision-support portfolio model**, not a production
-targeting system. It describes associations in Google's public, obfuscated GA4
-ecommerce sample and can illustrate how a team might prioritize a limited review
-queue. It does not estimate causal impact, recommend real-campaign treatment, or
-make a claim about real-campaign performance.
+Rank sessions by purchase likelihood from session-start context, so a team with a
+fixed review capacity (50 sessions per 1,000) can fill its queue. The model
+describes associations in Google's public, obfuscated GA4 ecommerce sample; it does
+not estimate causal impact. All numbers below come from
+`data/derived/ga4_public_sample/conversion_model_evaluation.json` and the executed
+`notebooks/02_conversion_model.ipynb`.
 
 ## Data and provenance
 
@@ -60,17 +61,39 @@ All imputation and one-hot encoding are inside each model pipeline. The capacity
 threshold is frozen at 0.035589 from 28,966 grouped out-of-fold training predictions
 only, before any final holdout score, label, threshold, or subgroup calculation.
 
-The no-skill comparator predicts the training prevalence. Two fitted comparators are
-logistic regression and a random forest; logistic regression was selected by mean
-training-CV PR-AUC.
+Two baselines are scored on the same holdout: the training prevalence (no skill)
+and a one-feature returning-visitor rule that gives each session its new/returning
+group's training conversion rate. Two fitted candidates are logistic regression and
+a random forest; logistic regression was selected by mean training-CV PR-AUC.
+Encoding hour and day of week as categories instead of numbers was also tried and
+lowered training-CV PR-AUC for both candidates, so it was not adopted.
 
 | Model / evidence | ROC-AUC | PR-AUC | Brier score |
 | --- | ---: | ---: | ---: |
 | No-skill prevalence, held out | 0.500000 | 0.013941 | 0.013748 |
+| Returning-visitor rule, held out | 0.668493 | 0.024040 | 0.013642 |
 | Logistic regression, training CV | 0.707922 | 0.043843 | 0.012284 |
 | Random forest, training CV | 0.676439 | 0.031707 | 0.079871 |
 | Logistic regression, held out | 0.652281 | 0.041429 | 0.013582 |
 | Random forest, held out | 0.629040 | 0.040626 | 0.085390 |
+
+### Uncertainty
+
+Intervals are 95% percentiles from 2,000 cluster-bootstrap resamples of held-out
+user buckets, so sessions that share a bucket move together.
+
+| Quantity | Estimate | 95% interval |
+| --- | ---: | ---: |
+| Logistic regression PR-AUC | 0.041429 | 0.027371 to 0.067842 |
+| Logistic regression ROC-AUC | 0.652281 | 0.590336 to 0.711786 |
+| PR-AUC gain over the returning-visitor rule | 0.017389 | 0.007336 to 0.040248 |
+| Queue precision at the capacity threshold | 0.069401 | 0.041321 to 0.099359 |
+| Queue recall at the capacity threshold | 0.217822 | 0.141005 to 0.297036 |
+| Queue lift over the held-out base rate | 4.978293 | 3.212790 to 6.899286 |
+
+The PR-AUC gain over the rule excludes zero, while the rule's ROC-AUC is slightly
+higher than the model's. The model's advantage is at the top of the ranking, which
+is the part a capacity-limited queue uses.
 
 ## Calibration
 
@@ -125,14 +148,25 @@ small subgroups are particularly unstable.
 | Status | new | 5,205 | 39 | 0 | 0.000000 | 0.000000 |
 | Status | returning | 2,040 | 62 | 317 | 0.069401 | 0.354839 |
 
+## Known extraction issue: acquisition features
+
+In 88.14% of sessions the exported `session_source` is `(unattributed)`. The
+extraction query takes source, medium and campaign from the session's very first
+event, and in this dataset that event is usually `session_start` or `first_visit`,
+which never carry those parameters (see
+`data/observed/ga4_public_sample/event_parameter_availability.json`). The funnel and
+attribution queries avoid this by taking the first event that has a source/medium
+pair. Applying the same rule to `conversion_model_sessions.sql` (restricted to
+events before any purchase) and re-running the bounded retrieval is the clearest
+improvement available; it was not re-run here because it needs BigQuery access.
+
 ## Limitations and monitoring needs
 
-The public data is old, obfuscated, ecommerce-specific, and sampled; it is not Data
-Design Dynamics data and should not be generalized to a client's visitors. Session
-acquisition context can be incomplete or unattributed, and a purchase-event label is
-not necessarily the conversion definition for another business. The low prevalence,
-threshold sensitivity, non-unique split bucket, temporal drift risk, and subgroup
-differences mean this evidence is suitable only for teaching measurement mechanics.
-Any future operational use would require consent, a separately governed dataset,
-privacy review, an outcome definition, ongoing drift/subgroup monitoring, and a
-causal experiment before claiming lift.
+The public data is old (late 2020), obfuscated, ecommerce-specific and sampled, so
+none of these numbers transfer to another site. Only 101 held-out conversions were
+observed, which is why the intervals above are wide. The split is group-disjoint but
+random in time; a forward-in-time holdout would better reflect deployment. The
+split key is a non-unique hash bucket, so a few unrelated users share a bucket. Any
+operational use would need a governed current dataset, a fresh validation set,
+privacy review, drift and subgroup monitoring, and a randomized test before
+claiming lift.

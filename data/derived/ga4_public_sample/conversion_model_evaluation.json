@@ -1,6 +1,30 @@
 {
   "evaluation_population": "7,245 held-out identifier-free public-sample sessions",
   "metrics": {
+    "capacity_operating_point": {
+      "capacity_per_1000": 50,
+      "flagged_sessions": 317,
+      "flagged_share": 0.043754,
+      "held_out_conversions": 101,
+      "held_out_sessions": 7245,
+      "lift_ci95_lower": 3.21279,
+      "lift_ci95_upper": 6.899286,
+      "lift_over_prevalence": 4.978293,
+      "precision": 0.069401,
+      "precision_ci95_lower": 0.041321,
+      "precision_ci95_upper": 0.099359,
+      "recall": 0.217822,
+      "recall_ci95_lower": 0.141005,
+      "recall_ci95_upper": 0.297036,
+      "threshold": 0.035589,
+      "true_positives": 22
+    },
+    "feature_coverage": {
+      "conversions": 466,
+      "returning_session_share": 0.277485,
+      "session_source_unattributed_share": 0.881417,
+      "sessions": 36211
+    },
     "logistic_regression_held_out": {
       "brier_score": 0.013582,
       "pr_auc": 0.041429,
@@ -16,10 +40,26 @@
       "pr_auc": 0.013941,
       "roc_auc": 0.5
     },
+    "pr_auc_gain_over_returning_rule": {
+      "ci95_lower": 0.007336,
+      "ci95_upper": 0.040248,
+      "estimate": 0.017389
+    },
     "random_forest_held_out": {
       "brier_score": 0.08539,
       "pr_auc": 0.040626,
       "roc_auc": 0.62904
+    },
+    "returning_visitor_rule_held_out": {
+      "brier_score": 0.013642,
+      "pr_auc": 0.02404,
+      "roc_auc": 0.668493
+    },
+    "selected_model_held_out_ci95": {
+      "pr_auc_lower": 0.027371,
+      "pr_auc_upper": 0.067842,
+      "roc_auc_lower": 0.590336,
+      "roc_auc_upper": 0.711786
     }
   },
   "selected_model": "logistic_regression",

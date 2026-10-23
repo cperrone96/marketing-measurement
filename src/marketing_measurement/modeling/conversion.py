@@ -1,7 +1,10 @@
 """Grouped, leakage-safe conversion propensity modeling for session observations.
 
-This module is intentionally decision support for an educational portfolio.  It does
-not estimate causal lift or prescribe real-campaign targeting.
+Candidates are compared on group-disjoint cross-validation inside the training
+split, then scored once on an untouched grouped holdout against two baselines: the
+training prevalence (no skill) and a one-feature returning-visitor rule. Held-out
+uncertainty comes from a cluster bootstrap over the non-unique user buckets.
+Predictions describe association, not causal lift.
 """
 
 from __future__ import annotations
@@ -37,6 +40,8 @@ from sklearn.preprocessing import OneHotEncoder  # type: ignore[import-untyped]
 RANDOM_STATE = 20260911
 HOLDOUT_FRACTION = 0.20
 OUTREACH_CAPACITY_PER_1000 = 50
+BOOTSTRAP_REPLICATES = 2_000
+HEURISTIC_FEATURE = "new_returning_status"
 DATE_COLUMN = "session_start_date"
 GROUP_COLUMN = "user_group_bucket"
 APPROVED_MODEL_FEATURES = (
@@ -79,6 +84,7 @@ class ModelBundle:
     selected_threshold: float
     test: HeldOutData
     split_metadata: Mapping[str, Any]
+    heuristic_rates: Mapping[str, float]
 
 
 @dataclass(frozen=True)
@@ -96,6 +102,8 @@ class EvaluationReport:
     selected_threshold_label: str
     confusion_matrix: pd.DataFrame
     subgroup_diagnostics: pd.DataFrame
+    heuristic_metrics: Mapping[str, float]
+    bootstrap_intervals: Mapping[str, tuple[float, float]]
 
 
 def build_feature_matrix(
@@ -181,6 +189,8 @@ def train_conversion_model(
         )[:, 1]
     )
     selected_threshold = _capacity_threshold(selected_oof_probability)
+    training_prevalence = float(y_train.mean())
+    heuristic_rates = _fit_rate_heuristic(x_train[HEURISTIC_FEATURE], y_train)
     split_metadata = {
         "method": "group_shuffle_split",
         "group_column": GROUP_COLUMN,
@@ -198,7 +208,7 @@ def train_conversion_model(
         models=fitted,
         selected_model_name=selected,
         feature_columns=tuple(feature_matrix.columns),
-        training_prevalence=float(y_train.mean()),
+        training_prevalence=training_prevalence,
         cv_scores=cv_scores,
         selected_threshold=selected_threshold,
         test=HeldOutData(
@@ -209,6 +219,7 @@ def train_conversion_model(
             groups=group_test,
         ),
         split_metadata=split_metadata,
+        heuristic_rates=heuristic_rates,
     )
 
 
@@ -233,6 +244,19 @@ def evaluate_conversion_model(
     selected_predictions = (selected_probability >= selected_threshold).astype(int)
     matrix = confusion_matrix(y_test, selected_predictions, labels=[0, 1])
     calibration = _calibration_bins(y_test, selected_probability)
+    heuristic_probability = _score_rate_heuristic(
+        test.features[HEURISTIC_FEATURE],
+        bundle.heuristic_rates,
+        bundle.training_prevalence,
+    )
+    heuristic = _probability_metrics(y_test, heuristic_probability)
+    intervals = grouped_bootstrap_intervals(
+        y_test.to_numpy(),
+        selected_probability,
+        heuristic_probability,
+        selected_threshold,
+        test.groups.to_numpy(),
+    )
     return EvaluationReport(
         baseline_pr_auc=baseline["pr_auc"],
         baseline_roc_auc=baseline["roc_auc"],
@@ -255,7 +279,65 @@ def evaluate_conversion_model(
         subgroup_diagnostics=_subgroup_diagnostics(
             test.features, y_test, selected_predictions
         ),
+        heuristic_metrics=heuristic,
+        bootstrap_intervals=intervals,
     )
+
+
+def grouped_bootstrap_intervals(
+    target: np.ndarray,
+    probability: np.ndarray,
+    heuristic_probability: np.ndarray,
+    threshold: float,
+    groups: np.ndarray,
+    replicates: int = BOOTSTRAP_REPLICATES,
+    seed: int = RANDOM_STATE,
+) -> Mapping[str, tuple[float, float]]:
+    """Percentile 95% intervals from a cluster bootstrap over split groups.
+
+    Whole groups are resampled with replacement, so sessions that share a user
+    bucket stay together and the interval reflects between-user variation rather
+    than treating sessions as independent. Replicates that draw a single outcome
+    class are skipped (and counted) because ranking metrics are undefined there.
+    """
+    if not len(target) == len(probability) == len(heuristic_probability) == len(groups):
+        raise ValueError("bootstrap inputs must have equal lengths")
+    rng = np.random.default_rng(seed)
+    unique_groups, group_codes = np.unique(groups, return_inverse=True)
+    members = [np.flatnonzero(group_codes == code) for code in range(len(unique_groups))]
+    flagged = probability >= threshold
+    samples: dict[str, list[float]] = {
+        "pr_auc": [],
+        "roc_auc": [],
+        "pr_auc_gain_over_heuristic": [],
+        "capacity_precision": [],
+        "capacity_recall": [],
+        "capacity_lift": [],
+    }
+    for _ in range(replicates):
+        drawn = rng.integers(0, len(members), size=len(members))
+        index = np.concatenate([members[code] for code in drawn])
+        y = target[index]
+        positives = int(y.sum())
+        if positives == 0 or positives == len(y):
+            continue
+        pr_auc = float(average_precision_score(y, probability[index]))
+        samples["pr_auc"].append(pr_auc)
+        samples["roc_auc"].append(float(roc_auc_score(y, probability[index])))
+        samples["pr_auc_gain_over_heuristic"].append(
+            pr_auc - float(average_precision_score(y, heuristic_probability[index]))
+        )
+        hits = int((y & flagged[index]).sum())
+        precision = hits / max(1, int(flagged[index].sum()))
+        samples["capacity_precision"].append(precision)
+        samples["capacity_recall"].append(hits / positives)
+        samples["capacity_lift"].append(precision / (positives / len(y)))
+    if len(samples["pr_auc"]) < 0.95 * replicates:
+        raise ValueError("too many single-class bootstrap replicates for stable intervals")
+    return {
+        name: (float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5)))
+        for name, values in samples.items()
+    }
 
 
 def _validate_training_inputs(
@@ -375,6 +457,20 @@ def _group_holdout_indices(
         )
     _, train_index, test_index, seed = min(candidates, key=lambda value: value[0])
     return train_index, test_index, seed
+
+
+def _fit_rate_heuristic(feature: pd.Series, target: pd.Series) -> Mapping[str, float]:
+    """Training conversion rate per category: a transparent one-rule baseline."""
+    rates = target.groupby(feature.fillna("(missing)").astype(str)).mean()
+    return {str(key): float(value) for key, value in rates.items()}
+
+
+def _score_rate_heuristic(
+    feature: pd.Series, rates: Mapping[str, float], fallback: float
+) -> np.ndarray:
+    """Score each row with its category's training rate (unseen: prevalence)."""
+    keys = feature.fillna("(missing)").astype(str)
+    return np.asarray(keys.map(rates).fillna(fallback), dtype=float)
 
 
 def _date_range(features: pd.DataFrame) -> Mapping[str, str | None]:
