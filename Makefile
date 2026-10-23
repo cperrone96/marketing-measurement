@@ -15,7 +15,7 @@ typecheck:
 # Re-execute both notebooks in place with this environment's kernel, so the committed
 # notebooks render on GitHub with outputs, then redraw the README figure.
 notebooks:
-	PATH="$(abspath $(dir $(PYTHON))):$$PATH" $(PYTHON) -m nbconvert --to notebook --execute --inplace \
+	PATH="$(abspath $(dir $(PYTHON))):$$PATH" $(PYTHON) -m nbconvert --to notebook --execute --inplace --ExecutePreprocessor.record_timing=False \
 		notebooks/01_public_data_findings.ipynb notebooks/02_conversion_model.ipynb
 
 figures:
