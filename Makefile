@@ -1,4 +1,4 @@
-.PHONY: test lint typecheck notebook-smoke verify-checksums release-gate ingest api dashboard
+.PHONY: test lint typecheck notebooks figures notebook-smoke verify-checksums release-gate ingest api dashboard
 
 PYTHON ?= .venv/bin/python
 NOTEBOOK_OUTPUT_DIR ?= .artifacts/notebook-smoke
@@ -11,6 +11,15 @@ lint:
 
 typecheck:
 	$(PYTHON) -m mypy src api
+
+# Re-execute both notebooks in place with this environment's kernel, so the committed
+# notebooks render on GitHub with outputs, then redraw the README figure.
+notebooks:
+	PATH="$(abspath $(dir $(PYTHON))):$$PATH" $(PYTHON) -m nbconvert --to notebook --execute --inplace \
+		notebooks/01_public_data_findings.ipynb notebooks/02_conversion_model.ipynb
+
+figures:
+	$(PYTHON) scripts/make_figures.py
 
 notebook-smoke:
 	$(PYTHON) scripts/smoke_notebooks.py --root . --output-dir $(NOTEBOOK_OUTPUT_DIR)

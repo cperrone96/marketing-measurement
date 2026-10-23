@@ -1,4 +1,10 @@
-"""Execute portfolio notebooks in an isolated copy without mutating evidence."""
+"""Execute portfolio notebooks in an isolated copy without mutating evidence.
+
+The committed notebooks keep their outputs so they render on GitHub. This gate
+re-executes them from a clean copy, requires every generated evidence file to be
+recreated and to match the reviewed artifact, and requires the executed notebook
+source to match the committed source.
+"""
 
 from __future__ import annotations
 
@@ -51,7 +57,6 @@ def run_notebook_smoke(root: Path, output_dir: Path) -> None:
     root = root.resolve()
     output_dir = output_dir.resolve()
     verify_release_checksums(root, "before")
-    verify_committed_notebooks_are_clean(root)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="workspace-", dir=output_dir) as temporary:
@@ -115,28 +120,6 @@ def normalize_notebook(notebook: dict[str, object]) -> dict[str, object]:
         if isinstance(language_info, dict):
             language_info.pop("version", None)
     return cast(dict[str, object], normalized)
-
-
-def verify_committed_notebooks_are_clean(root: Path) -> None:
-    """Reject committed execution output, which becomes stale evidence silently."""
-    for relative_notebook in DEFAULT_NOTEBOOKS:
-        notebook = json.loads((root / relative_notebook).read_text(encoding="utf-8"))
-        code_cells = [
-            cell for cell in notebook.get("cells", [])
-            if isinstance(cell, dict) and cell.get("cell_type") == "code"
-        ]
-        if any(
-            cell.get("outputs")
-            or cell.get("execution_count") is not None
-            or (
-                isinstance(cell.get("metadata"), dict)
-                and "execution" in cell["metadata"]
-            )
-            for cell in code_cells
-        ):
-            raise EvidenceIntegrityError(
-                f"committed notebook contains stale execution output: {relative_notebook}"
-            )
 
 
 def verify_generated_notebooks(output_dir: Path, canonical_root: Path) -> None:

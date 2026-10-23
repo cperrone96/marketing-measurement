@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "marketing-measurement"
 version = "0.1.0"
-description = "Marketing Measurement and Audience Integration portfolio project"
+description = "GA4 funnel, retention, attribution and conversion-ranking analysis with typed API contracts"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -25,6 +25,7 @@ dependencies = [
 dev = [
     "duckdb>=1.1,<2",
     "ipykernel>=6.29,<8",
+    "matplotlib>=3.9,<4",
     "mypy>=1.13,<2",
     "nbconvert>=7.16,<8",
     "pandas-stubs>=2.2,<3",
