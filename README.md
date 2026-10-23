@@ -20,8 +20,8 @@ numbers come from
 | How complete is a same-session funnel? | It keeps 2,847 of at least 4,844 purchase sessions (58.77%) | 1,997 purchase sessions have no add-to-cart in the same session |
 | Do new users come back? | 0.68% return on day 7 (1,611 of 238,644) | 85 first-touch cohorts with a fully observed day 7 |
 | How much do self-referrals distort attribution? | 1,381 of 3,230 converted sessions (42.76%) include a store self-referral, which takes 980 last-touch credits | Organic Search first vs last touch: 1,324 vs 1,054 as observed, 1,380 vs 1,312 with self-referrals removed |
-| Can session-start context rank buyers? | Held-out PR-AUC 0.0414 (95% CI 0.0274 to 0.0678) | No-skill 0.0139; returning-visitor rule 0.0240; gain over the rule 0.0174 (95% CI 0.0073 to 0.0402) |
-| What does a 5% review queue yield? | Precision 6.94% (95% CI 4.13% to 9.94%), 4.98x the base rate | Flags 317 of 7,245 held-out sessions (4.38%) and finds 21.78% of the 101 held-out conversions |
+| Can session-start context rank buyers? | Held-out PR-AUC 0.0414 (95% CI 0.0272 to 0.0680) | No-skill 0.0139; returning-visitor rule 0.0240; gain over the rule 0.0174 (95% CI 0.0073 to 0.0404) |
+| What does a 5% review queue yield? | Precision 6.73% (95% CI 4.00% to 9.60%), 4.83x the base rate | Flags 327 of 7,245 held-out sessions (4.51%) and finds 21.78% of the 101 held-out conversions |
 
 ![First-touch and last-touch credit by GA4 channel group, as observed and with store self-referrals removed](docs/figures/attribution_by_channel_group.png)
 
@@ -44,7 +44,8 @@ disagreement was a tracking artifact, not a difference in how channels behave.
   position decay (each earlier touch gets half the weight) over a complete 30-day
   lookback, with credit conserved per conversion and a self-referral sensitivity
   analysis.
-- **Leakage-safe propensity model.** Logistic regression and random forest on an
+- **Leakage-safe propensity model.** Logistic regression (solved to its unique
+  optimum with Newton's method) and random forest on an
   exact allowlist of session-start features, a group-disjoint holdout, `GroupKFold`
   model selection inside the training split, and a capacity threshold frozen from
   out-of-fold training scores.

@@ -236,3 +236,30 @@ def test_cluster_bootstrap_rejects_mismatched_lengths() -> None:
         conversion.grouped_bootstrap_intervals(
             np.array([0, 1]), np.array([0.1]), np.array([0.1, 0.2]), 0.5, np.array([1, 2])
         )
+
+
+def test_logistic_fit_is_independent_of_row_order() -> None:
+    """A converged convex fit must not depend on floating-point summation order.
+
+    The earlier early-stopped L-BFGS fit moved the held-out queue between 317 and
+    329 sessions under row permutations alone, and differed between macOS and Linux.
+    """
+    import numpy as np
+
+    sessions = pd.read_json(
+        Path(__file__).parents[2]
+        / "data/observed/ga4_public_sample/conversion_model_sessions.json.gz"
+    )
+    features = sessions.loc[:, list(conversion.APPROVED_MODEL_FEATURES)]
+    target = conversion._binary_target(sessions["converted"])
+    order = np.random.default_rng(0).permutation(len(sessions))
+
+    def fitted_scores(rows: np.ndarray) -> np.ndarray:
+        pipeline = conversion._candidate_pipelines(features)["logistic_regression"]
+        pipeline.fit(features.iloc[rows], target.iloc[rows])
+        return np.asarray(pipeline.predict_proba(features)[:, 1])
+
+    original = fitted_scores(np.arange(len(sessions)))
+    permuted = fitted_scores(order)
+
+    assert np.abs(original - permuted).max() < 1e-9

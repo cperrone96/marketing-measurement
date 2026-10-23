@@ -35,7 +35,10 @@ from sklearn.model_selection import (  # type: ignore[import-untyped]
     cross_validate,
 )
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
-from sklearn.preprocessing import OneHotEncoder  # type: ignore[import-untyped]
+from sklearn.preprocessing import (  # type: ignore[import-untyped]
+    OneHotEncoder,
+    StandardScaler,
+)
 
 RANDOM_STATE = 20260911
 HOLDOUT_FRACTION = 0.20
@@ -104,6 +107,7 @@ class EvaluationReport:
     subgroup_diagnostics: pd.DataFrame
     heuristic_metrics: Mapping[str, float]
     bootstrap_intervals: Mapping[str, tuple[float, float]]
+    threshold_margin: float
 
 
 def build_feature_matrix(
@@ -281,6 +285,7 @@ def evaluate_conversion_model(
         ),
         heuristic_metrics=heuristic,
         bootstrap_intervals=intervals,
+        threshold_margin=float(np.min(np.abs(selected_probability - selected_threshold))),
     )
 
 
@@ -376,18 +381,18 @@ def _binary_target(target: pd.Series) -> pd.Series:
     return normalized.map(accepted).astype(int)
 
 
-def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
+def _preprocessor(features: pd.DataFrame, *, scale_numeric: bool) -> ColumnTransformer:
+    """Impute and one-hot encode inside each pipeline so CV folds never see test rows."""
     numeric = features.select_dtypes(include=["number", "bool"]).columns.tolist()
     categorical = [column for column in features.columns if column not in numeric]
     transformers: list[tuple[str, Any, list[str]]] = []
     if numeric:
-        transformers.append(
-            (
-                "numeric",
-                Pipeline([("impute", SimpleImputer(strategy="median"))]),
-                numeric,
-            )
-        )
+        numeric_steps: list[tuple[str, Any]] = [
+            ("impute", SimpleImputer(strategy="median"))
+        ]
+        if scale_numeric:
+            numeric_steps.append(("scale", StandardScaler()))
+        transformers.append(("numeric", Pipeline(numeric_steps), numeric))
     if categorical:
         transformers.append(
             (
@@ -404,20 +409,33 @@ def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
                 categorical,
             )
         )
-    preprocessor = ColumnTransformer(transformers=transformers, remainder="drop")
+    return ColumnTransformer(transformers=transformers, remainder="drop")
+
+
+def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
+    """Return the candidate pipelines compared by grouped cross-validation.
+
+    The logistic regression is solved with Newton's method on standardized inputs
+    to a 1e-10 tolerance. L2-penalized logistic loss is strictly convex, so the fit
+    is the unique optimum rather than wherever an early-stopped quasi-Newton run
+    happened to halt. An early-stopped fit is set by its floating-point path, which
+    made the held-out operating point differ between macOS and Linux.
+    """
     return {
         "logistic_regression": Pipeline(
             [
-                ("preprocess", preprocessor),
+                ("preprocess", _preprocessor(features, scale_numeric=True)),
                 (
                     "classifier",
-                    LogisticRegression(max_iter=1_000, random_state=RANDOM_STATE),
+                    LogisticRegression(
+                        solver="newton-cholesky", tol=1e-10, max_iter=1_000
+                    ),
                 ),
             ]
         ),
         "random_forest": Pipeline(
             [
-                ("preprocess", preprocessor),
+                ("preprocess", _preprocessor(features, scale_numeric=False)),
                 (
                     "classifier",
                     RandomForestClassifier(

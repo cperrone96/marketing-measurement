@@ -3,20 +3,20 @@
   "metrics": {
     "capacity_operating_point": {
       "capacity_per_1000": 50,
-      "flagged_sessions": 317,
-      "flagged_share": 0.043754,
+      "flagged_sessions": 327,
+      "flagged_share": 0.045135,
       "held_out_conversions": 101,
       "held_out_sessions": 7245,
-      "lift_ci95_lower": 3.21279,
-      "lift_ci95_upper": 6.899286,
-      "lift_over_prevalence": 4.978293,
-      "precision": 0.069401,
-      "precision_ci95_lower": 0.041321,
-      "precision_ci95_upper": 0.099359,
+      "lift_ci95_lower": 3.10454,
+      "lift_ci95_upper": 6.673864,
+      "lift_over_prevalence": 4.826051,
+      "precision": 0.067278,
+      "precision_ci95_lower": 0.039994,
+      "precision_ci95_upper": 0.096027,
       "recall": 0.217822,
       "recall_ci95_lower": 0.141005,
       "recall_ci95_upper": 0.297036,
-      "threshold": 0.035589,
+      "threshold": 0.035706,
       "true_positives": 22
     },
     "feature_coverage": {
@@ -26,14 +26,14 @@
       "sessions": 36211
     },
     "logistic_regression_held_out": {
-      "brier_score": 0.013582,
-      "pr_auc": 0.041429,
-      "roc_auc": 0.652281
+      "brier_score": 0.013585,
+      "pr_auc": 0.04139,
+      "roc_auc": 0.653125
     },
     "logistic_regression_training_cv": {
-      "brier_score": 0.012284,
-      "pr_auc": 0.043843,
-      "roc_auc": 0.707922
+      "brier_score": 0.012285,
+      "pr_auc": 0.043855,
+      "roc_auc": 0.706967
     },
     "no_skill_held_out": {
       "brier_score": 0.013748,
@@ -41,9 +41,9 @@
       "roc_auc": 0.5
     },
     "pr_auc_gain_over_returning_rule": {
-      "ci95_lower": 0.007336,
-      "ci95_upper": 0.040248,
-      "estimate": 0.017389
+      "ci95_lower": 0.007276,
+      "ci95_upper": 0.040388,
+      "estimate": 0.01735
     },
     "random_forest_held_out": {
       "brier_score": 0.08539,
@@ -56,13 +56,13 @@
       "roc_auc": 0.668493
     },
     "selected_model_held_out_ci95": {
-      "pr_auc_lower": 0.027371,
-      "pr_auc_upper": 0.067842,
-      "roc_auc_lower": 0.590336,
-      "roc_auc_upper": 0.711786
+      "pr_auc_lower": 0.027242,
+      "pr_auc_upper": 0.067993,
+      "roc_auc_lower": 0.59041,
+      "roc_auc_upper": 0.71293
     }
   },
   "selected_model": "logistic_regression",
-  "selected_threshold": 0.035589,
+  "selected_threshold": 0.035706,
   "threshold_label": "capacity_50_per_1000_sessions"
 }

@@ -57,8 +57,14 @@ purchase/revenue, transactions, duration, or later pages. `user_group_bucket` an
 `GroupShuffleSplit` makes a deterministic 80/20 group-disjoint split: 28,966
 training rows and 7,245 held-out rows, with zero overlapping exported buckets. The
 model selection CV is `GroupKFold(n_splits=5)` entirely within the training data.
-All imputation and one-hot encoding are inside each model pipeline. The capacity
-threshold is frozen at 0.035589 from 28,966 grouped out-of-fold training predictions
+All imputation, scaling and one-hot encoding are inside each model pipeline. The
+logistic regression is solved with Newton's method on standardized numeric inputs to
+a 1e-10 tolerance, so it reaches the unique optimum of its convex loss. An earlier
+version stopped L-BFGS at its default tolerance after 65 iterations, up to 0.027 away
+in predicted probability from that optimum, and the operating point then differed
+between macOS (317 flagged) and Linux (322 flagged). The notebook now asserts that no
+held-out score lies within 1e-6 of the frozen threshold; the nearest is 2.9e-5 away. The capacity
+threshold is frozen at 0.035706 from 28,966 grouped out-of-fold training predictions
 only, before any final holdout score, label, threshold, or subgroup calculation.
 
 Two baselines are scored on the same holdout: the training prevalence (no skill)
@@ -72,9 +78,9 @@ lowered training-CV PR-AUC for both candidates, so it was not adopted.
 | --- | ---: | ---: | ---: |
 | No-skill prevalence, held out | 0.500000 | 0.013941 | 0.013748 |
 | Returning-visitor rule, held out | 0.668493 | 0.024040 | 0.013642 |
-| Logistic regression, training CV | 0.707922 | 0.043843 | 0.012284 |
+| Logistic regression, training CV | 0.706967 | 0.043855 | 0.012285 |
 | Random forest, training CV | 0.676439 | 0.031707 | 0.079871 |
-| Logistic regression, held out | 0.652281 | 0.041429 | 0.013582 |
+| Logistic regression, held out | 0.653125 | 0.041390 | 0.013585 |
 | Random forest, held out | 0.629040 | 0.040626 | 0.085390 |
 
 ### Uncertainty
@@ -84,12 +90,12 @@ user buckets, so sessions that share a bucket move together.
 
 | Quantity | Estimate | 95% interval |
 | --- | ---: | ---: |
-| Logistic regression PR-AUC | 0.041429 | 0.027371 to 0.067842 |
-| Logistic regression ROC-AUC | 0.652281 | 0.590336 to 0.711786 |
-| PR-AUC gain over the returning-visitor rule | 0.017389 | 0.007336 to 0.040248 |
-| Queue precision at the capacity threshold | 0.069401 | 0.041321 to 0.099359 |
+| Logistic regression PR-AUC | 0.041390 | 0.027242 to 0.067993 |
+| Logistic regression ROC-AUC | 0.653125 | 0.590410 to 0.712930 |
+| PR-AUC gain over the returning-visitor rule | 0.017350 | 0.007276 to 0.040388 |
+| Queue precision at the capacity threshold | 0.067278 | 0.039994 to 0.096027 |
 | Queue recall at the capacity threshold | 0.217822 | 0.141005 to 0.297036 |
-| Queue lift over the held-out base rate | 4.978293 | 3.212790 to 6.899286 |
+| Queue lift over the held-out base rate | 4.826051 | 3.104540 to 6.673864 |
 
 The PR-AUC gain over the rule excludes zero, while the rule's ROC-AUC is slightly
 higher than the model's. The model's advantage is at the top of the ranking, which
@@ -98,16 +104,16 @@ is the part a capacity-limited queue uses.
 ## Calibration
 
 No calibration was applied. The held-out Brier score for the selected logistic model
-is only slightly better than the no-skill value (0.013582 vs. 0.013748), and its
+is only slightly better than the no-skill value (0.013585 vs. 0.013748), and its
 five held-out quantile bins show modest, rather than compelling, calibration error:
 
 | Mean predicted probability | Observed conversion rate |
 | ---: | ---: |
-| 0.005008 | 0.008972 |
-| 0.005904 | 0.011027 |
-| 0.006739 | 0.006911 |
-| 0.011844 | 0.010352 |
-| 0.033310 | 0.032436 |
+| 0.004959 | 0.008941 |
+| 0.005871 | 0.011042 |
+| 0.006734 | 0.006897 |
+| 0.011793 | 0.009695 |
+| 0.033379 | 0.033149 |
 
 Most importantly, the untouched holdout must not be reused to fit a calibrator. A
 future calibration experiment would require a nested, group-disjoint validation
@@ -116,22 +122,22 @@ step inside the training population and a new untouched test set.
 ## Capacity scenario and threshold trade-offs
 
 For an illustrative outreach/review team that can inspect **50 sessions per 1,000**,
-the threshold is 0.035589, frozen from training-only grouped out-of-fold predictions
-before evaluating the holdout. It flags 317 of 7,245 held-out sessions (43.75 per
-1,000), with precision 0.069401 and recall 0.217822. The holdout rate need not be
+the threshold is 0.035706, frozen from training-only grouped out-of-fold predictions
+before evaluating the holdout. It flags 327 of 7,245 held-out sessions (45.13 per
+1,000), with precision 0.067278 and recall 0.217822. The holdout rate need not be
 exactly 50/1,000 because the frozen training threshold is not tuned to test scores.
 
 | Scenario | Threshold | Flagged sessions | Precision | Recall |
 | --- | ---: | ---: | ---: | ---: |
 | 0.05 | 0.050000 | 112 | 0.089286 | 0.099010 |
-| 0.10 | 0.100000 | 19 | 0.052632 | 0.009901 |
+| 0.10 | 0.100000 | 10 | 0.100000 | 0.009901 |
 | 0.20 | 0.200000 | 0 | 0.000000 | 0.000000 |
 | 0.30 | 0.300000 | 0 | 0.000000 | 0.000000 |
 | 0.50 | 0.500000 | 0 | 0.000000 | 0.000000 |
-| Capacity: 50/1,000, frozen from training OOF | 0.035589 | 317 | 0.069401 | 0.217822 |
+| Capacity: 50/1,000, frozen from training OOF | 0.035706 | 327 | 0.067278 | 0.217822 |
 
-At the frozen capacity threshold, the held-out confusion matrix is 6,849 true
-negatives, 295 false positives, 79 false negatives, and 22 true positives.
+At the frozen capacity threshold, the held-out confusion matrix is 6,839 true
+negatives, 305 false positives, 79 false negatives, and 22 true positives.
 
 ## Subgroup diagnostics at the capacity threshold
 
@@ -140,13 +146,13 @@ small subgroups are particularly unstable.
 
 | Dimension | Group | Sessions | Conversions | Flagged | Precision | Recall |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Country | Other | 4,028 | 52 | 208 | 0.072115 | 0.288462 |
-| Country | United States | 3,217 | 49 | 109 | 0.064220 | 0.142857 |
-| Device | desktop | 4,249 | 58 | 152 | 0.085526 | 0.224138 |
-| Device | mobile | 2,847 | 42 | 154 | 0.058442 | 0.214286 |
-| Device | tablet | 149 | 1 | 11 | 0.000000 | 0.000000 |
+| Country | Other | 4,028 | 52 | 217 | 0.069124 | 0.288462 |
+| Country | United States | 3,217 | 49 | 110 | 0.063636 | 0.142857 |
+| Device | desktop | 4,249 | 58 | 154 | 0.084416 | 0.224138 |
+| Device | mobile | 2,847 | 42 | 161 | 0.055901 | 0.214286 |
+| Device | tablet | 149 | 1 | 12 | 0.000000 | 0.000000 |
 | Status | new | 5,205 | 39 | 0 | 0.000000 | 0.000000 |
-| Status | returning | 2,040 | 62 | 317 | 0.069401 | 0.354839 |
+| Status | returning | 2,040 | 62 | 327 | 0.067278 | 0.354839 |
 
 ## Known extraction issue: acquisition features
 

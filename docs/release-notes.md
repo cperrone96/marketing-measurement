@@ -10,8 +10,10 @@
 - Funnel: a coverage check shows the strict same-session funnel keeps 2,847 of at
   least 4,844 purchase sessions; 1,997 purchases have no same-session add-to-cart.
 - Model: a returning-visitor rule baseline and 95% cluster-bootstrap intervals.
-  PR-AUC 0.041429 (0.027371 to 0.067842) against 0.024040 for the rule; the
-  existing model metrics are unchanged. The model card records that 88.14% of
+  PR-AUC 0.041390 (0.027242 to 0.067993) against 0.024040 for the rule.
+- Logistic regression is now solved exactly (Newton's method, standardized inputs,
+  tolerance 1e-10). The early-stopped L-BFGS fit made the 5% queue flag 317
+  sessions on macOS and 322 on Linux; the converged fit flags 327. The model card records that 88.14% of
   sessions have an unattributed source because of the extraction query.
 - Reproducibility: pinned `requirements.txt`, committed notebook outputs, `make
   notebooks` and `make figures`, and a README figure.
