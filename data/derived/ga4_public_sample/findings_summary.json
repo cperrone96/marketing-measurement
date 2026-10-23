@@ -134,6 +134,102 @@
         "youtube.com / referral": 0.952381
       }
     },
+    "channel_group_credits": {
+      "first_touch": {
+        "Affiliates": 1.0,
+        "Direct": 241.0,
+        "Email": 7.0,
+        "Internal self-referral": 500.0,
+        "Organic Search": 1324.0,
+        "Organic Social": 1.0,
+        "Organic Video": 2.0,
+        "Paid Search": 53.0,
+        "Referral": 834.0,
+        "Unassigned": 267.0
+      },
+      "last_touch": {
+        "Affiliates": 2.0,
+        "Direct": 209.0,
+        "Email": 14.0,
+        "Internal self-referral": 980.0,
+        "Organic Search": 1054.0,
+        "Organic Social": 2.0,
+        "Organic Video": 2.0,
+        "Paid Search": 36.0,
+        "Referral": 714.0,
+        "Unassigned": 217.0
+      },
+      "linear": {
+        "Affiliates": 1.333333,
+        "Direct": 215.440765,
+        "Email": 10.008333,
+        "Internal self-referral": 817.145779,
+        "Organic Search": 1119.419012,
+        "Organic Social": 1.25,
+        "Organic Video": 2.333333,
+        "Paid Search": 40.653608,
+        "Referral": 736.499675,
+        "Unassigned": 285.916162
+      },
+      "time_decay": {
+        "Affiliates": 1.571429,
+        "Direct": 207.511431,
+        "Email": 11.674727,
+        "Internal self-referral": 903.641641,
+        "Organic Search": 1078.922139,
+        "Organic Social": 1.533333,
+        "Organic Video": 2.285714,
+        "Paid Search": 38.11193,
+        "Referral": 719.577064,
+        "Unassigned": 265.170593
+      }
+    },
+    "channel_group_credits_excluding_self_referrals": {
+      "first_touch": {
+        "Affiliates": 2.0,
+        "Direct": 572.0,
+        "Email": 12.0,
+        "Organic Search": 1380.0,
+        "Organic Social": 1.0,
+        "Organic Video": 2.0,
+        "Paid Search": 55.0,
+        "Referral": 883.0,
+        "Unassigned": 323.0
+      },
+      "last_touch": {
+        "Affiliates": 2.0,
+        "Direct": 585.0,
+        "Email": 17.0,
+        "Organic Search": 1312.0,
+        "Organic Social": 2.0,
+        "Organic Video": 3.0,
+        "Paid Search": 49.0,
+        "Referral": 862.0,
+        "Unassigned": 398.0
+      },
+      "linear": {
+        "Affiliates": 2.0,
+        "Direct": 584.548918,
+        "Email": 15.083333,
+        "Organic Search": 1321.8636,
+        "Organic Social": 1.5,
+        "Organic Video": 2.833333,
+        "Paid Search": 50.014322,
+        "Referral": 856.965476,
+        "Unassigned": 395.191017
+      },
+      "time_decay": {
+        "Affiliates": 2.0,
+        "Direct": 584.013937,
+        "Email": 15.980952,
+        "Organic Search": 1314.607915,
+        "Organic Social": 1.666667,
+        "Organic Video": 2.952381,
+        "Paid Search": 49.396592,
+        "Referral": 856.760344,
+        "Unassigned": 402.621212
+      }
+    },
     "credit_totals": {
       "first_touch": 3230.0,
       "last_touch": 3230.0,
@@ -142,7 +238,13 @@
     },
     "eligibility": "conversion date on or after 2020-12-01; full 30-day source-window lookback",
     "eligible_converted_sessions": 3230,
-    "interpretation": "descriptive attribution; not causal"
+    "interpretation": "descriptive attribution; not causal",
+    "self_referral": {
+      "converted_sessions_with_self_referral_touch": 1381,
+      "definition": "*.googlemerchandisestore.com / referral touches",
+      "last_touch_credit_as_observed": 980.0,
+      "share_of_converted_sessions": 0.427554
+    }
   },
   "day_7_retention": {
     "cohort_users": 238644,
@@ -160,7 +262,15 @@
     "engagement_rate": 0.749831,
     "purchase_rate": 0.478005,
     "purchases": 2847,
+    "view_to_purchase_rate": 0.008532,
     "views": 333683
+  },
+  "funnel_coverage": {
+    "definition": "purchase sessions in the five highest-revenue stage patterns; a lower bound on all purchase sessions",
+    "observed_purchase_sessions_lower_bound": 4844,
+    "purchases_without_same_session_cart": 1997,
+    "strict_funnel_purchases": 2847,
+    "strict_funnel_share": 0.587737
   },
   "source": {
     "coverage_end": "2021-01-31",

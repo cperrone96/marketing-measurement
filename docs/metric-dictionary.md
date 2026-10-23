@@ -8,20 +8,23 @@ undefined; it is never silently converted to zero.
 | Metric | Numerator | Denominator / grain | Window | Decision use | Source |
 | --- | --- | --- | --- | --- | --- |
 | Viewed sessions | Distinct sessions containing `page_view` | Unique `user_pseudo_id + ga_session_id` sessions | 2020-11-01–2021-01-31 | Funnel entry coverage | `funnel_daily_by_channel.sql` |
-| Engagement rate | Sessions containing engagement | Viewed sessions | Same | Diagnose early journey quality | `funnel.py`, `findings_summary.json` |
-| Add-to-cart rate | Sessions containing `add_to_cart` | Engaged sessions | Same | Identify the largest measured transition opportunity | Same |
-| Checkout rate | Sessions containing `begin_checkout` | Add-to-cart sessions | Same | Diagnose cart-to-checkout transition | Same |
-| Purchase rate | Sessions containing `purchase` | Checkout sessions | Same | Diagnose checkout completion | Same |
+| Engagement rate | Viewed sessions containing a `user_engagement` event (a proxy for GA4's `session_engaged` flag) | Viewed sessions | Same | Diagnose early journey quality | `funnel.py`, `findings_summary.json` |
+| Add-to-cart rate | Engaged sessions also containing `add_to_cart` | Engaged sessions | Same | Identify the largest measured transition opportunity | Same |
+| Checkout rate | Add-to-cart sessions also containing `begin_checkout` | Add-to-cart sessions | Same | Diagnose cart-to-checkout transition | Same |
+| Purchase rate | Checkout sessions also containing `purchase` | Checkout sessions | Same | Diagnose checkout completion | Same |
 | Day-7 retention | Users active exactly seven days after cohort date | Users in true first-touch cohorts with a fully observable day seven | Eligible cohorts through 2021-01-24 | Lifecycle measurement | `cohort_retention.sql`, `cohorts.py` |
-| Attribution credit | Weighted model credit assigned to a channel | 3,230 eligible converted sessions | Conversions 2020-12-01–2021-01-31, complete 30-day lookback | Compare descriptive accounting rules | `conversion_channel_paths.sql`, `attribution.py` |
+| Attribution credit | Weighted model credit assigned to a `source / medium` or simplified GA4 default channel group, as observed and with store self-referrals removed | 3,230 eligible converted sessions | Conversions 2020-12-01–2021-01-31, complete 30-day lookback | Compare descriptive accounting rules | `conversion_channel_paths.sql`, `attribution.py` |
 | ROC-AUC | Pairwise ranking performance | 7,245 held-out sampled sessions | Source window | Ranking diagnostic | Model notebook/card |
 | PR-AUC | Precision-recall curve area | 7,245 held-out sessions; 101 conversions | Source window | Low-prevalence ranking diagnostic | Model notebook/card |
 | Brier score | Mean squared probability error | 7,245 held-out sessions | Source window | Calibration diagnostic | Model notebook/card |
 | Capacity precision | 22 true positives | 317 flagged held-out sessions | Training-frozen threshold | Review-queue yield | Model notebook/card |
 | Capacity recall | 22 true positives | 101 held-out conversions | Training-frozen threshold | Review-queue coverage | Model notebook/card |
 
-Funnel stages are session-presence measures, not proof that every event occurred in
-sequence. Attribution is always labeled **descriptive attribution; not causal**.
+Funnel stages are strict same-session presence measures, not proof that events
+occurred in order. At least 1,997 purchase sessions have no add-to-cart in the same
+session, so the strict funnel keeps 2,847 of at least 4,844 purchase sessions
+(`findings_summary.json`, `funnel_coverage`). `time_decay` halves the weight of each
+earlier touch (position-based, because the path extract has no timestamps). Attribution is always labeled **descriptive attribution; not causal**.
 
 ## Synthetic metrics and scenarios
 
