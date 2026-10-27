@@ -1,5 +1,5 @@
 {
-  "billing_project": "christina-data-portfolio-2026",
+  "billing_project": "owner-supplied billing project (not recorded)",
   "coverage_end": "2021-01-31",
   "coverage_start": "2020-11-01",
   "curation": "Reviewed display subset: all three device rows and the five highest-revenue rows retained for each landing-page, product/revenue, and stage-pattern section from the 62-row aggregate query result.",
@@ -7,12 +7,13 @@
   "evidence_scope": "Aggregate-only landing-page, device, product/revenue, and stage-pattern rows; no user, session, event, or transaction identifiers.",
   "job_bytes_billed": 1801453568,
   "job_bytes_processed": 1800578057,
-  "job_id": "bqjob_r151bf0387b587da_000001a09181cbad_1",
+  "job_id": "marketing_measurement_portfolio_decision_aggregates_20261027233457429279",
   "location": "US",
-  "maximum_bytes_billed": 4000000000,
+  "maximum_bytes_billed": 1853006857,
   "query_path": "sql/bigquery/portfolio_decision_aggregates.sql",
-  "query_sha256": "7583452f5b9494497fff41d71c6187251837b67ac5c12a063867cf2409162e01",
+  "query_sha256": "0bf5805552595bb60a93ca35d1b6dd3176c32a462a689ce0854ff0a67ac8fc6f",
   "result_path": "data/observed/ga4_public_sample/portfolio_decision_aggregates.json",
-  "result_sha256": "240f62bc29b0563e83a5233dde5f95f4612a5fd79ec93c7568edfd6588853433",
+  "result_sha256": "91077f97ff24a5cc1448cb0d68d7712457ed4d11874e4cee24dc68ca5802205a",
+  "retrieved_at_utc": "2026-10-27T23:35:04.855402+00:00",
   "source": "bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*"
 }

@@ -10,6 +10,8 @@ WITH events AS (
     (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_location')
       AS page_location,
     device.category AS device_category,
+    (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'session_engaged')
+      AS session_engaged_flag,
     ecommerce.purchase_revenue AS purchase_revenue
   FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
   WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20210131'
@@ -22,7 +24,7 @@ WITH events AS (
     ARRAY_AGG(device_category IGNORE NULLS ORDER BY event_timestamp LIMIT 1)[SAFE_OFFSET(0)]
       AS device_category,
     LOGICAL_OR(event_name = 'page_view') AS viewed,
-    LOGICAL_OR(event_name = 'user_engagement') AS engaged,
+    COALESCE(LOGICAL_OR(session_engaged_flag = '1'), FALSE) AS engaged,
     LOGICAL_OR(event_name = 'add_to_cart') AS carted,
     LOGICAL_OR(event_name = 'begin_checkout') AS checked_out,
     LOGICAL_OR(event_name = 'purchase') AS purchased,
@@ -73,6 +75,7 @@ WITH events AS (
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY analysis ORDER BY
       CASE WHEN analysis = 'high_value_journey' THEN revenue ELSE sessions END DESC,
+      sessions DESC,
       dimension
   ) <= 20
 ), product_rows AS (

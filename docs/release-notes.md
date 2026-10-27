@@ -1,5 +1,23 @@
 # Release notes
 
+## v0.3.0 (unreleased): corrected extraction and forward validation
+
+- Model extract: acquisition source, medium and campaign now come from the landing
+  `page_view` (before any purchase). The old query read the first event, which never
+  carries them, leaving 88% of sessions `(unattributed)`; now 38.86%, the share of
+  landing hits with no source in this export. Population: 33,553 sessions with a
+  landing page view, all 466 purchase sessions kept.
+- Engagement now uses GA4's `session_engaged` flag (string value; the integer 1 on
+  `session_start`/`first_visit` marks every session and is ignored): 72.05% of viewed
+  sessions, versus 74.98% for the old `user_engagement` proxy. Funnel and decision
+  aggregates were re-queried.
+- Model: forward-in-time validation (train Nov to Dec 2020, test Jan 2021), tuned L2
+  logistic regression and histogram gradient boosting (replacing the random forest,
+  whose class-balanced probabilities were badly calibrated), calibration
+  diagnostics and permutation importance. Held-out PR-AUC 0.051064 and ROC-AUC
+  0.811306, versus 0.025031 and 0.720098 for the returning-visitor rule.
+- BigQuery re-runs used tight `maximum_bytes_billed` caps from each dry run.
+
 ## v0.2.0 (unreleased): analysis review
 
 - Attribution: simplified GA4 default channel grouping and a self-referral
@@ -13,8 +31,7 @@
   PR-AUC 0.041390 (0.027242 to 0.067993) against 0.024040 for the rule.
 - Logistic regression is now solved exactly (Newton's method, standardized inputs,
   tolerance 1e-10). The early-stopped L-BFGS fit made the 5% queue flag 317
-  sessions on macOS and 322 on Linux; the converged fit flags 327. The model card records that 88.14% of
-  sessions have an unattributed source because of the extraction query.
+  sessions on macOS and 322 on Linux; the converged fit flags 327.
 - Reproducibility: pinned `requirements.txt`, committed notebook outputs, `make
   notebooks` and `make figures`, and a README figure.
 

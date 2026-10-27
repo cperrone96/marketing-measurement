@@ -1,68 +1,98 @@
 {
-  "evaluation_population": "7,245 held-out identifier-free public-sample sessions",
+  "evaluation_population": "11,194 held-out January 2021 public-sample sessions",
   "metrics": {
+    "calibration": {
+      "calibration_slope": 1.250041,
+      "expected_conversions": 165.081912,
+      "observed_conversions": 116.0,
+      "observed_to_expected_ratio": 0.702681
+    },
     "capacity_operating_point": {
       "capacity_per_1000": 50,
-      "flagged_sessions": 327,
-      "flagged_share": 0.045135,
-      "held_out_conversions": 101,
-      "held_out_sessions": 7245,
-      "lift_ci95_lower": 3.10454,
-      "lift_ci95_upper": 6.673864,
-      "lift_over_prevalence": 4.826051,
-      "precision": 0.067278,
-      "precision_ci95_lower": 0.039994,
-      "precision_ci95_upper": 0.096027,
-      "recall": 0.217822,
-      "recall_ci95_lower": 0.141005,
-      "recall_ci95_upper": 0.297036,
-      "threshold": 0.035706,
-      "true_positives": 22
+      "flagged_sessions": 409,
+      "flagged_share": 0.036537,
+      "held_out_conversions": 116,
+      "held_out_sessions": 11194,
+      "lift_ci95_lower": 4.684573,
+      "lift_ci95_upper": 8.713375,
+      "lift_over_prevalence": 6.606357,
+      "precision": 0.06846,
+      "precision_ci95_lower": 0.045708,
+      "precision_ci95_upper": 0.092421,
+      "recall": 0.241379,
+      "recall_ci95_lower": 0.168032,
+      "recall_ci95_upper": 0.321429,
+      "threshold": 0.05514,
+      "true_positives": 28
     },
     "feature_coverage": {
       "conversions": 466,
-      "returning_session_share": 0.277485,
-      "session_source_unattributed_share": 0.881417,
-      "sessions": 36211
+      "held_out_sessions": 11194,
+      "returning_session_share": 0.220874,
+      "session_source_unattributed_share": 0.388579,
+      "sessions": 33553,
+      "training_sessions": 22359
+    },
+    "gradient_boosting_held_out": {
+      "brier_score": 0.010049,
+      "pr_auc": 0.051064,
+      "roc_auc": 0.811306
+    },
+    "gradient_boosting_parameters": {
+      "learning_rate": 0.03,
+      "max_leaf_nodes": 7
+    },
+    "gradient_boosting_training_cv": {
+      "brier_score": 0.015143,
+      "pr_auc": 0.053273,
+      "roc_auc": 0.781279
     },
     "logistic_regression_held_out": {
-      "brier_score": 0.013585,
-      "pr_auc": 0.04139,
-      "roc_auc": 0.653125
+      "brier_score": 0.010039,
+      "pr_auc": 0.050711,
+      "roc_auc": 0.817465
+    },
+    "logistic_regression_parameters": {
+      "C": 1.0
     },
     "logistic_regression_training_cv": {
-      "brier_score": 0.012285,
-      "pr_auc": 0.043855,
-      "roc_auc": 0.706967
+      "brier_score": 0.015174,
+      "pr_auc": 0.050028,
+      "roc_auc": 0.781951
     },
     "no_skill_held_out": {
-      "brier_score": 0.013748,
-      "pr_auc": 0.013941,
+      "brier_score": 0.010283,
+      "pr_auc": 0.010363,
       "roc_auc": 0.5
     },
-    "pr_auc_gain_over_returning_rule": {
-      "ci95_lower": 0.007276,
-      "ci95_upper": 0.040388,
-      "estimate": 0.01735
+    "permutation_importance_pr_auc_drop": {
+      "country_group": -0.000199,
+      "device_category": -0.000824,
+      "new_returning_status": 0.036346,
+      "session_campaign": 0.000746,
+      "session_medium": 0.017585,
+      "session_source": 0.01943,
+      "session_start_day_of_week": 0.00208,
+      "session_start_hour": -0.001838
     },
-    "random_forest_held_out": {
-      "brier_score": 0.08539,
-      "pr_auc": 0.040626,
-      "roc_auc": 0.62904
+    "pr_auc_gain_over_returning_rule": {
+      "ci95_lower": 0.016083,
+      "ci95_upper": 0.047182,
+      "estimate": 0.026032
     },
     "returning_visitor_rule_held_out": {
-      "brier_score": 0.013642,
-      "pr_auc": 0.02404,
-      "roc_auc": 0.668493
+      "brier_score": 0.010147,
+      "pr_auc": 0.025031,
+      "roc_auc": 0.720098
     },
     "selected_model_held_out_ci95": {
-      "pr_auc_lower": 0.027242,
-      "pr_auc_upper": 0.067993,
-      "roc_auc_lower": 0.59041,
-      "roc_auc_upper": 0.71293
+      "pr_auc_lower": 0.036526,
+      "pr_auc_upper": 0.077015,
+      "roc_auc_lower": 0.766181,
+      "roc_auc_upper": 0.853229
     }
   },
-  "selected_model": "logistic_regression",
-  "selected_threshold": 0.035706,
+  "selected_model": "gradient_boosting",
+  "selected_threshold": 0.05514,
   "threshold_label": "capacity_50_per_1000_sessions"
 }

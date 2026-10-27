@@ -60,11 +60,14 @@ def test_readme_figure_is_committed_and_referenced() -> None:
 
 def test_model_card_matches_model_evidence() -> None:
     card = (ROOT / "docs/models/conversion-model-card.md").read_text(encoding="utf-8")
-    metrics = _model_evidence()["metrics"]
+    evidence = _model_evidence()
+    metrics = evidence["metrics"]
     capacity = metrics["capacity_operating_point"]
     intervals = metrics["selected_model_held_out_ci95"]
     for value in (
+        metrics[f"{evidence['selected_model']}_held_out"]["pr_auc"],
         metrics["logistic_regression_held_out"]["pr_auc"],
+        metrics["calibration"]["observed_to_expected_ratio"],
         metrics["no_skill_held_out"]["pr_auc"],
         metrics["returning_visitor_rule_held_out"]["pr_auc"],
         intervals["pr_auc_lower"],
@@ -77,6 +80,7 @@ def test_model_card_matches_model_evidence() -> None:
         assert f"{value:.6f}" in card, value
     assert f"{capacity['flagged_sessions']:,} of {capacity['held_out_sessions']:,}" in card
     assert f"{metrics['feature_coverage']['session_source_unattributed_share']:.2%}" in card
+    assert f"{metrics['feature_coverage']['sessions']:,} sessions" in card
 
 
 def test_notebook_smoke_requires_freshly_created_generated_evidence(
@@ -225,10 +229,13 @@ def _expected_key_result_fragments() -> list[str]:
     groups = attribution["channel_group_credits"]
     clean = attribution["channel_group_credits_excluding_self_referrals"]
     self_referral = attribution["self_referral"]
-    metrics = _model_evidence()["metrics"]
+    evidence = _model_evidence()
+    metrics = evidence["metrics"]
+    selected = metrics[f"{evidence['selected_model']}_held_out"]
     capacity = metrics["capacity_operating_point"]
     intervals = metrics["selected_model_held_out_ci95"]
     gain = metrics["pr_auc_gain_over_returning_rule"]
+    rule = metrics["returning_visitor_rule_held_out"]
     return [
         findings["source"]["coverage_start"],
         findings["source"]["coverage_end"],
@@ -253,7 +260,9 @@ def _expected_key_result_fragments() -> list[str]:
         f"{groups['last_touch']['Organic Search']:,.0f} as observed"),
         (f"{clean['first_touch']['Organic Search']:,.0f} vs "
         f"{clean['last_touch']['Organic Search']:,.0f} with self-referrals removed"),
-        (f"PR-AUC {metrics['logistic_regression_held_out']['pr_auc']:.4f} "
+        f"ROC-AUC {selected['roc_auc']:.3f}",
+        f"(ROC-AUC {rule['roc_auc']:.3f})",
+        (f"PR-AUC {selected['pr_auc']:.4f} "
         f"(95% CI {intervals['pr_auc_lower']:.4f} to {intervals['pr_auc_upper']:.4f})"),
         f"No-skill {metrics['no_skill_held_out']['pr_auc']:.4f}",
         f"returning-visitor rule {metrics['returning_visitor_rule_held_out']['pr_auc']:.4f}",

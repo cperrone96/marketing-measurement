@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Any
 
 MAXIMUM_BYTES_BILLED = 4_000_000_000
+#: Headroom over the dry-run estimate for the real job's billing cap. BigQuery
+#: rounds billed bytes up to whole megabytes, so a small fixed margin suffices.
+BILLING_CAP_HEADROOM_BYTES = 50 * 1024 * 1024
 ROOT = Path(__file__).resolve().parents[1]
 SQL_PATH = ROOT / "sql" / "bigquery" / "conversion_model_sessions.sql"
 OUTPUT_PATH = (
@@ -72,13 +75,25 @@ def _safe_job_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def billing_cap(dry_run_bytes: int) -> int:
+    """Cap the real job just above its dry-run size, never above the hard ceiling."""
+    cap = dry_run_bytes + BILLING_CAP_HEADROOM_BYTES
+    if cap > MAXIMUM_BYTES_BILLED:
+        raise ValueError(f"query would scan {dry_run_bytes} bytes, above the ceiling")
+    return cap
+
+
 def _query_arguments(
-    sql: str, *, dry_run: bool, job_id: str | None = None
+    sql: str,
+    *,
+    dry_run: bool,
+    job_id: str | None = None,
+    maximum_bytes_billed: int = MAXIMUM_BYTES_BILLED,
 ) -> list[str]:
     arguments = [
         "query",
         "--use_legacy_sql=false",
-        f"--maximum_bytes_billed={MAXIMUM_BYTES_BILLED}",
+        f"--maximum_bytes_billed={maximum_bytes_billed}",
         "--format=json",
         "--max_rows=100000",
     ]
@@ -98,9 +113,12 @@ def main() -> None:
     arguments = parser.parse_args()
     sql = SQL_PATH.read_text(encoding="utf-8")
     dry_run = _run_bq(arguments.project_id, _query_arguments(sql, dry_run=True))
+    dry_run_metadata = _safe_dry_run_metadata(json.loads(dry_run.stdout))
+    cap = billing_cap(int(dry_run_metadata["bytes_processed"]))
     job_id = f"marketing_measurement_{QUERY_NAME}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
     result = _run_bq(
-        arguments.project_id, _query_arguments(sql, dry_run=False, job_id=job_id)
+        arguments.project_id,
+        _query_arguments(sql, dry_run=False, job_id=job_id, maximum_bytes_billed=cap),
     )
     job = _run_bq(arguments.project_id, ["show", "--format=json", "-j", job_id])
     _write_deterministic_gzip(OUTPUT_PATH, result.stdout)
@@ -109,7 +127,9 @@ def main() -> None:
     queries[QUERY_NAME] = {
         "sql_path": str(SQL_PATH.relative_to(ROOT)),
         "sql_sha256": _sha256(SQL_PATH),
-        "dry_run": _safe_dry_run_metadata(json.loads(dry_run.stdout)),
+        "dry_run": dry_run_metadata,
+        "maximum_bytes_billed": cap,
+        "retrieved_at_utc": datetime.now(UTC).isoformat(),
         "job": _safe_job_metadata(json.loads(job.stdout)),
         "result_path": str(OUTPUT_PATH.relative_to(ROOT)),
         "result_sha256": _sha256(OUTPUT_PATH),
@@ -119,7 +139,6 @@ def main() -> None:
         ),
         "result_category": "identifier_free_session_model_data",
     }
-    metadata["retrieved_at_utc"] = datetime.now(UTC).isoformat()
     METADATA_PATH.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

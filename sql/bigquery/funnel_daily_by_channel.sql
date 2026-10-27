@@ -1,6 +1,7 @@
 /* Public Google Analytics sample only. Grain: UTC session-start date + first observed
 event-scoped source/medium in the session. `traffic_source` is deliberately not used:
-it is first-user acquisition, not a session touchpoint. No identifiers are returned. */
+it is first-user acquisition, not a session touchpoint. Engagement uses GA4's
+`session_engaged` flag. No identifiers are returned. */
 WITH events AS (
   SELECT
     user_pseudo_id,
@@ -8,7 +9,11 @@ WITH events AS (
       AS ga_session_id,
     event_timestamp,
     MAX(event_name = 'page_view') AS has_page_view,
-    MAX(event_name = 'user_engagement') AS has_engagement,
+    /* GA4's engaged-session flag: the string '1' on events once the session has
+       engaged. `session_start`/`first_visit` carry an integer 1 for every session,
+       so only the string value is read. */
+    COALESCE(MAX((SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'session_engaged') = '1'), FALSE)
+      AS has_engagement,
     MAX(event_name = 'add_to_cart') AS has_add_to_cart,
     MAX(event_name = 'begin_checkout') AS has_begin_checkout,
     MAX(event_name = 'purchase') AS has_purchase,

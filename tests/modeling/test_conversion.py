@@ -19,15 +19,30 @@ from marketing_measurement.modeling.conversion import (
 )
 
 
+@pytest.fixture(autouse=True)
+def small_parameter_grids(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One configuration per family keeps unit tests fast; the grid logic is shared."""
+    monkeypatch.setattr(
+        conversion,
+        "PARAMETER_GRIDS",
+        {
+            "logistic_regression": ({"classifier__C": 1.0},),
+            "gradient_boosting": ({"classifier__learning_rate": 0.1},),
+        },
+    )
+
+
 @pytest.fixture
 def training_frame() -> pd.DataFrame:
     """Small, balanced-enough pre-outcome session sample."""
     rows: list[dict[str, object]] = []
-    for index in range(100):
-        converted = index % 5 == 0
+    for index in range(300):
+        converted = index % 7 == 0
         rows.append(
             {
-                "session_start_date": f"2020-11-{(index % 28) + 1:02d}",
+                "session_start_date": (
+                    f"{('2020-11', '2020-12', '2021-01')[index % 3]}-{(index % 28) + 1:02d}"
+                ),
                 "session_start_hour": index % 24,
                 "session_start_day_of_week": index % 7,
                 "device_category": "mobile" if index % 2 else "desktop",
@@ -89,7 +104,7 @@ def test_report_contains_baseline_and_calibration(training_frame: pd.DataFrame) 
     assert report.baseline_pr_auc is not None
     assert report.brier_score is not None
     assert report.threshold_table.shape[0] >= 3
-    assert set(report.model_metrics) == {"logistic_regression", "random_forest"}
+    assert set(report.model_metrics) == {"logistic_regression", "gradient_boosting"}
     assert report.confusion_matrix.shape == (2, 2)
     assert not report.calibration_bins.empty
 
@@ -153,7 +168,7 @@ def test_observed_session_sample_has_no_unique_identifier_columns() -> None:
     )
     sessions = pd.read_json(path)
 
-    assert len(sessions) == 36_211
+    assert len(sessions) == 33_553
     assert sessions.columns.tolist() == [
         "converted",
         "country_group",

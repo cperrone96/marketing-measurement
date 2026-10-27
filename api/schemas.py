@@ -193,7 +193,7 @@ class IntegrationHealthResponse(Pagination):
 
 
 class ConversionModelResponse(APIModel):
-    selected_model: Literal["logistic_regression"]
+    selected_model: Literal["logistic_regression", "gradient_boosting"]
     evaluation_population: str
     metrics: dict[str, dict[str, float]]
     selected_threshold: float = Field(ge=0, le=1)

@@ -254,23 +254,23 @@
     "retained_users": 1611
   },
   "funnel": {
-    "add_to_cart_rate": 0.059627,
-    "add_to_carts": 14919,
-    "checkout_rate": 0.399222,
-    "checkouts": 5956,
-    "engaged_sessions": 250206,
-    "engagement_rate": 0.749831,
-    "purchase_rate": 0.478005,
-    "purchases": 2847,
-    "view_to_purchase_rate": 0.008532,
+    "add_to_cart_rate": 0.062923,
+    "add_to_carts": 15127,
+    "checkout_rate": 0.394064,
+    "checkouts": 5961,
+    "engaged_sessions": 240406,
+    "engagement_rate": 0.720462,
+    "purchase_rate": 0.477772,
+    "purchases": 2848,
+    "view_to_purchase_rate": 0.008535,
     "views": 333683
   },
   "funnel_coverage": {
     "definition": "purchase sessions in the five highest-revenue stage patterns; a lower bound on all purchase sessions",
-    "observed_purchase_sessions_lower_bound": 4844,
+    "observed_purchase_sessions_lower_bound": 4845,
     "purchases_without_same_session_cart": 1997,
-    "strict_funnel_purchases": 2847,
-    "strict_funnel_share": 0.587737
+    "strict_funnel_purchases": 2848,
+    "strict_funnel_share": 0.587822
   },
   "source": {
     "coverage_end": "2021-01-31",

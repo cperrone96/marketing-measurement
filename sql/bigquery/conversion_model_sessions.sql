@@ -1,4 +1,4 @@
-/* Public Google Analytics sample only. Grain: one measured session.
+/* Public Google Analytics sample only. Grain: one session with a landing page view.
    The output deliberately excludes raw user_pseudo_id, ga_session_id, event IDs,
    and transaction IDs. `user_group_bucket` is a non-unique deterministic bucket
    used only to keep a user's sessions on one split; collisions are expected. */
@@ -23,36 +23,48 @@ WITH sampled_events AS (
   WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20210131'
     /* Deterministic 10% user-level sample, without exporting a user identifier. */
     AND MOD(ABS(FARM_FINGERPRINT(user_pseudo_id)), 100) < 10
+), purchase_cutoffs AS (
+  /* The landing hit must precede the session's first purchase, so no feature can
+     be read off the outcome event itself. */
+  SELECT user_pseudo_id, ga_session_id, MIN(event_timestamp) AS first_purchase_timestamp
+  FROM sampled_events
+  WHERE event_name = 'purchase' AND ga_session_id IS NOT NULL
+  GROUP BY user_pseudo_id, ga_session_id
 ), sessions AS (
   SELECT
-    user_pseudo_id,
-    ga_session_id,
+    sampled_events.user_pseudo_id,
+    sampled_events.ga_session_id,
     MIN(event_timestamp) AS session_start_timestamp,
     ARRAY_AGG(
-      STRUCT(
-        device_category,
-        country,
-        ga_session_number,
-        event_source,
-        event_medium,
-        event_campaign
-      )
+      STRUCT(device_category, country, ga_session_number)
       /* Canonical first-event selection, including deterministic timestamp ties. */
       ORDER BY
         event_timestamp,
         event_name,
         COALESCE(device_category, ''),
         COALESCE(country, ''),
-        COALESCE(ga_session_number, -1),
-        COALESCE(event_source, ''),
-        COALESCE(event_medium, ''),
-        COALESCE(event_campaign, '')
+        COALESCE(ga_session_number, -1)
       LIMIT 1
     )[SAFE_OFFSET(0)] AS start_context,
+    /* Acquisition context comes from the landing hit: the session's first
+       `page_view`, where GA4 records the session's source and medium.
+       (`session_start` and `first_visit` never carry them in this export.) */
+    ARRAY_AGG(
+      IF(
+        event_name = 'page_view',
+        STRUCT(event_timestamp, event_source, event_medium, event_campaign),
+        NULL
+      ) IGNORE NULLS
+      ORDER BY event_timestamp, COALESCE(event_source, ''), COALESCE(event_medium, ''),
+        COALESCE(event_campaign, '')
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS landing_context,
+    MIN(first_purchase_timestamp) AS first_purchase_timestamp,
     LOGICAL_OR(event_name = 'purchase') AS converted
   FROM sampled_events
-  WHERE ga_session_id IS NOT NULL
-  GROUP BY user_pseudo_id, ga_session_id
+  LEFT JOIN purchase_cutoffs USING (user_pseudo_id, ga_session_id)
+  WHERE sampled_events.ga_session_id IS NOT NULL
+  GROUP BY sampled_events.user_pseudo_id, sampled_events.ga_session_id
 )
 SELECT
   DATE(TIMESTAMP_MICROS(session_start_timestamp), 'UTC') AS session_start_date,
@@ -71,13 +83,16 @@ SELECT
     WHEN start_context.ga_session_number IS NULL THEN '(unknown)'
     ELSE 'returning'
   END AS new_returning_status,
-  COALESCE(NULLIF(start_context.event_source, ''), '(unattributed)') AS session_source,
-  COALESCE(NULLIF(start_context.event_medium, ''), '(unattributed)') AS session_medium,
-  COALESCE(NULLIF(start_context.event_campaign, ''), '(none)') AS session_campaign,
+  COALESCE(NULLIF(landing_context.event_source, ''), '(unattributed)') AS session_source,
+  COALESCE(NULLIF(landing_context.event_medium, ''), '(unattributed)') AS session_medium,
+  COALESCE(NULLIF(landing_context.event_campaign, ''), '(none)') AS session_campaign,
   /* This is intentionally non-unique and is not a user identifier. */
   MOD(ABS(FARM_FINGERPRINT(user_pseudo_id)), 10000) AS user_group_bucket,
   converted
 FROM sessions
+/* Model population: sessions with a landing page view that precedes any purchase. */
+WHERE landing_context IS NOT NULL
+  AND landing_context.event_timestamp < COALESCE(first_purchase_timestamp, 9223372036854775807)
 /* Canonical output ordering. Identical visible rows need no hidden-ID tie-breaker. */
 ORDER BY
   session_start_date,

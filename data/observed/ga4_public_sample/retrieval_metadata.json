@@ -69,15 +69,17 @@
         "bytes_billed": "1677721600",
         "bytes_processed": "1677485270",
         "cache_hit": false,
-        "job_id": "marketing_measurement_conversion_model_sessions_20260911143248340205",
+        "job_id": "marketing_measurement_conversion_model_sessions_20261023171058141931",
         "location": "US"
       },
+      "maximum_bytes_billed": 1729914070,
       "result_category": "identifier_free_session_model_data",
       "result_path": "data/observed/ga4_public_sample/conversion_model_sessions.json.gz",
-      "result_sha256": "cf828e20761a596a0ca1a7f2568dd808792367137ba7bd0a6a3bfc946dfccf9c",
+      "result_sha256": "f1e30fb2c0c4a9bba6652925029cbe5605ffb1755fc7a5c5f97c8664c1647ba3",
+      "retrieved_at_utc": "2026-10-23T17:11:09.161989+00:00",
       "scope": "Identifier-free 10% deterministic user-level sample at one row per measured session for educational conversion-model evaluation.",
       "sql_path": "sql/bigquery/conversion_model_sessions.sql",
-      "sql_sha256": "26e5aead54dee1c80bc695d78664319b328ba59cda7a64ee8a3f3ac3ad7e0270"
+      "sql_sha256": "557d5aa822cbf3848f8f53a31230774b639c47673888ed08e0c8fd847b598744"
     },
     "event_parameter_availability": {
       "dry_run": {
@@ -121,13 +123,15 @@
         "bytes_billed": "1590689792",
         "bytes_processed": "1590253819",
         "cache_hit": false,
-        "job_id": "marketing_measurement_funnel_daily_by_channel_20260911140429171353",
+        "job_id": "marketing_measurement_funnel_daily_by_channel_20261027233445462094",
         "location": "US"
       },
+      "maximum_bytes_billed": 1642682619,
       "result_path": "data/observed/ga4_public_sample/funnel_daily_by_channel.json",
-      "result_sha256": "447c329ffca58e2c83972e7eebc1d7aa98ed8a2a744a2c3587de63c7bdeb55c1",
+      "result_sha256": "166e77e8e9dccf384a85a1bb700210bc6e67101d65d21bc97a9ee4dca8574579",
+      "retrieved_at_utc": "2026-10-27T23:34:53.829431+00:00",
       "sql_path": "sql/bigquery/funnel_daily_by_channel.sql",
-      "sql_sha256": "dccc2c607ae882e053eec80a039b31b5a5987d387d32e8833dee42befcbf928c"
+      "sql_sha256": "08b5bd0579a9fb6dad37db65d31a306a5f2513d1d5fa91cac28e0f35c551dc60"
     }
   },
   "retrieved_at_utc": "2026-09-11T14:32:58.431586+00:00"

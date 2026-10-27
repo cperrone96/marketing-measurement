@@ -74,11 +74,137 @@ def _safe_job_metadata(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+PORTFOLIO_QUERY = "portfolio_decision_aggregates"
+PORTFOLIO_SECTION_NAMES = {"product": "product_revenue"}
+PORTFOLIO_SECTION_ORDER = ("device", "landing_page", "product_revenue", "high_value_journey")
+PORTFOLIO_INTEGER_FIELDS = frozenset(
+    {"sessions", "engaged_sessions", "purchases", "product_views", "add_to_carts", "units"}
+)
+PORTFOLIO_FLOAT_FIELDS = frozenset({"revenue", "conversion_rate"})
+
+
+def billing_cap(dry_run_bytes: int) -> int:
+    """Cap a real job just above its dry-run size, never above the hard ceiling."""
+    cap = dry_run_bytes + 50 * 1024 * 1024
+    if cap > MAXIMUM_BYTES_BILLED:
+        raise ValueError(f"query would scan {dry_run_bytes} bytes, above the ceiling")
+    return cap
+
+
+def curate_portfolio_rows(rows: list[dict[str, str | None]]) -> list[dict[str, object]]:
+    """Keep every device row and the five highest-revenue rows of each other section.
+
+    Ties in revenue (for example abandoned journeys at zero) go to the larger row.
+
+    BigQuery's JSON output is all strings; values are typed and null fields dropped.
+    """
+    typed: list[dict[str, object]] = []
+    for row in rows:
+        record: dict[str, object] = {}
+        for key, value in row.items():
+            if value is None:
+                continue
+            if key in PORTFOLIO_INTEGER_FIELDS:
+                record[key] = int(value)
+            elif key in PORTFOLIO_FLOAT_FIELDS:
+                record[key] = float(value)
+            else:
+                record[key] = value
+        record["analysis"] = PORTFOLIO_SECTION_NAMES.get(
+            str(record["analysis"]), record["analysis"]
+        )
+        typed.append(record)
+    curated: list[dict[str, object]] = []
+    for section in PORTFOLIO_SECTION_ORDER:
+        members = sorted(
+            (row for row in typed if row["analysis"] == section),
+            key=lambda row: (
+                -float(str(row["revenue"])),
+                -int(str(row.get("sessions", row.get("product_views", 0)))),
+                str(row["dimension"]),
+            ),
+        )
+        curated.extend(members if section == "device" else members[:5])
+    return curated
+
+
+def retrieve_queries(project_id: str, names: list[str]) -> None:
+    """Re-run named queries with tight billing caps, merging into existing metadata."""
+    metadata_path = OUTPUT_DIRECTORY / "retrieval_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    for name in names:
+        sql_path = SQL_DIRECTORY / f"{name}.sql"
+        sql = sql_path.read_text(encoding="utf-8")
+        dry_run = _safe_dry_run_metadata(
+            json.loads(_run_bq(project_id, _query_arguments(sql, dry_run=True)).stdout)
+        )
+        cap = billing_cap(int(str(dry_run["bytes_processed"])))
+        job_id = f"marketing_measurement_{name}_{datetime.now(UTC):%Y%m%d%H%M%S%f}"
+        arguments = _query_arguments(sql, dry_run=False, job_id=job_id)
+        arguments = [
+            f"--maximum_bytes_billed={cap}" if item.startswith("--maximum_bytes") else item
+            for item in arguments
+        ]
+        result = _run_bq(project_id, arguments)
+        job = _safe_job_metadata(
+            json.loads(_run_bq(project_id, ["show", "--format=json", "-j", job_id]).stdout)
+        )
+        output_path = OUTPUT_DIRECTORY / f"{name}.json"
+        if name == PORTFOLIO_QUERY:
+            rows = curate_portfolio_rows(json.loads(result.stdout))
+            output_path.write_text(
+                json.dumps(rows, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            portfolio_path = OUTPUT_DIRECTORY / f"{name}_metadata.json"
+            portfolio = json.loads(portfolio_path.read_text(encoding="utf-8"))
+            portfolio.update(
+                {
+                    "billing_project": "owner-supplied billing project (not recorded)",
+                    "dry_run_bytes_processed": int(str(dry_run["bytes_processed"])),
+                    "job_bytes_billed": int(str(job["bytes_billed"])),
+                    "job_bytes_processed": int(str(job["bytes_processed"])),
+                    "job_id": job["job_id"],
+                    "maximum_bytes_billed": cap,
+                    "query_sha256": _sha256(sql_path),
+                    "result_sha256": _sha256(output_path),
+                    "retrieved_at_utc": datetime.now(UTC).isoformat(),
+                }
+            )
+            portfolio_path.write_text(
+                json.dumps(portfolio, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            continue
+        output_path.write_text(result.stdout, encoding="utf-8")
+        metadata["queries"][name] = {
+            "sql_path": str(sql_path.relative_to(ROOT)),
+            "sql_sha256": _sha256(sql_path),
+            "dry_run": dry_run,
+            "job": job,
+            "maximum_bytes_billed": cap,
+            "retrieved_at_utc": datetime.now(UTC).isoformat(),
+            "result_path": str(output_path.relative_to(ROOT)),
+            "result_sha256": _sha256(output_path),
+        }
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> None:
     """Dry-run every query before retrieving its compact aggregate-only result."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-id", required=True)
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        choices=(*QUERY_NAMES, PORTFOLIO_QUERY),
+        help="re-run only these queries and merge into the existing metadata",
+    )
     arguments = parser.parse_args()
+    if arguments.only:
+        retrieve_queries(arguments.project_id, arguments.only)
+        return
     OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
     retrieved_at = datetime.now(UTC).isoformat()
     metadata: dict[str, object] = {

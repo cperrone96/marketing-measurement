@@ -1,9 +1,11 @@
-"""Grouped, leakage-safe conversion propensity modeling for session observations.
+"""Leakage-safe conversion propensity modeling for session observations.
 
-Candidates are compared on group-disjoint cross-validation inside the training
-split, then scored once on an untouched grouped holdout against two baselines: the
-training prevalence (no skill) and a one-feature returning-visitor rule. Held-out
-uncertainty comes from a cluster bootstrap over the non-unique user buckets.
+Validation mirrors deployment: the model is trained on earlier sessions and scored
+once on a later month it never saw. Inside the training period, an L2 logistic
+regression and a histogram gradient-boosting model are tuned and compared with
+user-bucket ``GroupKFold`` cross-validation. The held-out month is scored against
+two baselines (training prevalence and a one-feature returning-visitor rule), with
+cluster-bootstrap intervals, calibration diagnostics and permutation importance.
 Predictions describe association, not causal lift.
 """
 
@@ -17,8 +19,11 @@ import numpy as np
 import pandas as pd
 from sklearn.calibration import calibration_curve  # type: ignore[import-untyped]
 from sklearn.compose import ColumnTransformer  # type: ignore[import-untyped]
-from sklearn.ensemble import RandomForestClassifier  # type: ignore[import-untyped]
+from sklearn.ensemble import (  # type: ignore[import-untyped]
+    HistGradientBoostingClassifier,
+)
 from sklearn.impute import SimpleImputer  # type: ignore[import-untyped]
+from sklearn.inspection import permutation_importance  # type: ignore[import-untyped]
 from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
 from sklearn.metrics import (  # type: ignore[import-untyped]
     average_precision_score,
@@ -30,18 +35,30 @@ from sklearn.metrics import (  # type: ignore[import-untyped]
 )
 from sklearn.model_selection import (  # type: ignore[import-untyped]
     GroupKFold,
-    GroupShuffleSplit,
     cross_val_predict,
     cross_validate,
 )
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 from sklearn.preprocessing import (  # type: ignore[import-untyped]
     OneHotEncoder,
+    OrdinalEncoder,
     StandardScaler,
 )
 
 RANDOM_STATE = 20260911
-HOLDOUT_FRACTION = 0.20
+#: Sessions on or after this date form the untouched forward-in-time holdout.
+TEMPORAL_CUTOFF = "2021-01-01"
+#: Hyperparameter grids searched with grouped CV inside the training period only.
+PARAMETER_GRIDS: Mapping[str, tuple[Mapping[str, Any], ...]] = {
+    "logistic_regression": tuple(
+        {"classifier__C": c} for c in (0.01, 0.1, 1.0, 10.0)
+    ),
+    "gradient_boosting": tuple(
+        {"classifier__learning_rate": rate, "classifier__max_leaf_nodes": leaves}
+        for rate in (0.03, 0.1)
+        for leaves in (7, 15)
+    ),
+}
 OUTREACH_CAPACITY_PER_1000 = 50
 BOOTSTRAP_REPLICATES = 2_000
 HEURISTIC_FEATURE = "new_returning_status"
@@ -88,6 +105,7 @@ class ModelBundle:
     test: HeldOutData
     split_metadata: Mapping[str, Any]
     heuristic_rates: Mapping[str, float]
+    best_parameters: Mapping[str, Mapping[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -108,6 +126,8 @@ class EvaluationReport:
     heuristic_metrics: Mapping[str, float]
     bootstrap_intervals: Mapping[str, tuple[float, float]]
     threshold_margin: float
+    calibration_summary: Mapping[str, float]
+    permutation_importance: pd.DataFrame
 
 
 def build_feature_matrix(
@@ -132,9 +152,12 @@ def build_feature_matrix(
 
 
 def train_conversion_model(
-    features: pd.DataFrame, target: pd.Series, groups: pd.Series
+    features: pd.DataFrame,
+    target: pd.Series,
+    groups: pd.Series,
+    temporal_cutoff: str = TEMPORAL_CUTOFF,
 ) -> ModelBundle:
-    """Fit baselines on a group-disjoint holdout and group-confined CV folds."""
+    """Tune and select on earlier sessions; hold out every later session untouched."""
 
     _validate_training_inputs(features, target, groups)
     feature_matrix = build_feature_matrix(features, APPROVED_MODEL_FEATURES)
@@ -142,8 +165,8 @@ def train_conversion_model(
     groups_clean = groups.reset_index(drop=True)
     feature_matrix = feature_matrix.reset_index(drop=True)
     original_features = features.reset_index(drop=True)
-    train_index, test_index, split_seed = _group_holdout_indices(
-        target_binary, groups_clean
+    train_index, test_index = _temporal_holdout_indices(
+        original_features, target_binary, temporal_cutoff
     )
     x_train = feature_matrix.iloc[train_index]
     y_train = target_binary.iloc[train_index]
@@ -155,32 +178,41 @@ def train_conversion_model(
     cv_splits = min(5, int(group_train.nunique()))
     if cv_splits < 2:
         raise ValueError("At least two non-unique user-group buckets are required")
-    splitter = GroupKFold(n_splits=cv_splits)
-    cv_scores: dict[str, Mapping[str, float]] = {}
-    fitted: dict[str, Any] = {}
+    cv_folds = list(
+        GroupKFold(n_splits=cv_splits).split(x_train, y_train, group_train)
+    )
     scoring = {
         "roc_auc": "roc_auc",
         "pr_auc": "average_precision",
         "brier": "neg_brier_score",
     }
-    cv_folds = list(splitter.split(x_train, y_train, group_train))
+    cv_scores: dict[str, Mapping[str, float]] = {}
+    best_parameters: dict[str, Mapping[str, Any]] = {}
+    fitted: dict[str, Any] = {}
     for name, pipeline in pipelines.items():
-        scored = cross_validate(
-            pipeline,
-            x_train,
-            y_train,
-            groups=group_train,
-            cv=cv_folds,
-            scoring=scoring,
-            n_jobs=1,
-            error_score="raise",
+        best: tuple[float, Mapping[str, Any], Mapping[str, float]] | None = None
+        for parameters in PARAMETER_GRIDS[name]:
+            scored = cross_validate(
+                pipeline.set_params(**parameters),
+                x_train,
+                y_train,
+                cv=cv_folds,
+                scoring=scoring,
+                n_jobs=1,
+                error_score="raise",
+            )
+            scores = {
+                "roc_auc": float(np.mean(scored["test_roc_auc"])),
+                "pr_auc": float(np.mean(scored["test_pr_auc"])),
+                "brier_score": float(-np.mean(scored["test_brier"])),
+            }
+            if best is None or scores["pr_auc"] > best[0]:
+                best = (scores["pr_auc"], parameters, scores)
+        assert best is not None
+        _, best_parameters[name], cv_scores[name] = best
+        fitted[name] = pipeline.set_params(**best_parameters[name]).fit(
+            x_train, y_train
         )
-        cv_scores[name] = {
-            "roc_auc": float(np.mean(scored["test_roc_auc"])),
-            "pr_auc": float(np.mean(scored["test_pr_auc"])),
-            "brier_score": float(-np.mean(scored["test_brier"])),
-        }
-        fitted[name] = pipeline.fit(x_train, y_train)
     selected = max(cv_scores, key=lambda name: cv_scores[name]["pr_auc"])
     selected_oof_probability = np.asarray(
         cross_val_predict(
@@ -196,17 +228,16 @@ def train_conversion_model(
     training_prevalence = float(y_train.mean())
     heuristic_rates = _fit_rate_heuristic(x_train[HEURISTIC_FEATURE], y_train)
     split_metadata = {
-        "method": "group_shuffle_split",
-        "group_column": GROUP_COLUMN,
-        "holdout_fraction_target": HOLDOUT_FRACTION,
-        "holdout_rows": len(test_index),
+        "method": "temporal_holdout",
+        "temporal_cutoff": temporal_cutoff,
         "training_rows": len(train_index),
-        "random_state": split_seed,
-        "cv": f"GroupKFold(n_splits={cv_splits}) on training data only",
+        "holdout_rows": len(test_index),
+        "training_date_range": _date_range(original_features.iloc[train_index]),
+        "holdout_date_range": _date_range(original_features.iloc[test_index]),
+        "cv": f"GroupKFold(n_splits={cv_splits}) on {GROUP_COLUMN}, training only",
+        "tuning": "grid search on mean grouped-CV PR-AUC, training only",
         "threshold_source": "grouped_out_of_fold_training_predictions",
         "threshold_oof_rows": len(selected_oof_probability),
-        "group_overlap_count": len(set(group_train).intersection(set(group_test))),
-        "date_range": _date_range(original_features),
     }
     return ModelBundle(
         models=fitted,
@@ -224,6 +255,7 @@ def train_conversion_model(
         ),
         split_metadata=split_metadata,
         heuristic_rates=heuristic_rates,
+        best_parameters=best_parameters,
     )
 
 
@@ -286,6 +318,10 @@ def evaluate_conversion_model(
         heuristic_metrics=heuristic,
         bootstrap_intervals=intervals,
         threshold_margin=float(np.min(np.abs(selected_probability - selected_threshold))),
+        calibration_summary=_calibration_summary(y_test, selected_probability),
+        permutation_importance=_permutation_importance(
+            bundle.models[bundle.selected_model_name], x_test, y_test
+        ),
     )
 
 
@@ -413,14 +449,32 @@ def _preprocessor(features: pd.DataFrame, *, scale_numeric: bool) -> ColumnTrans
 
 
 def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
-    """Return the candidate pipelines compared by grouped cross-validation.
+    """Return the two model families compared by grouped cross-validation.
 
     The logistic regression is solved with Newton's method on standardized inputs
     to a 1e-10 tolerance. L2-penalized logistic loss is strictly convex, so the fit
-    is the unique optimum rather than wherever an early-stopped quasi-Newton run
-    happened to halt. An early-stopped fit is set by its floating-point path, which
-    made the held-out operating point differ between macOS and Linux.
+    is its unique optimum rather than wherever an early-stopped quasi-Newton run
+    halted; an early-stopped fit depends on the platform's floating-point path.
+    Gradient boosting uses native categorical splits on ordinal-encoded inputs and
+    a fixed number of boosting rounds (no random early-stopping split).
     """
+    numeric = features.select_dtypes(include=["number", "bool"]).columns.tolist()
+    categorical = [column for column in features.columns if column not in numeric]
+    ordinal = ColumnTransformer(
+        transformers=[
+            ("numeric", SimpleImputer(strategy="median"), numeric),
+            (
+                "categorical",
+                OrdinalEncoder(
+                    handle_unknown="use_encoded_value",
+                    unknown_value=np.nan,
+                    encoded_missing_value=np.nan,
+                ),
+                categorical,
+            ),
+        ],
+        remainder="drop",
+    )
     return {
         "logistic_regression": Pipeline(
             [
@@ -433,16 +487,18 @@ def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
                 ),
             ]
         ),
-        "random_forest": Pipeline(
+        "gradient_boosting": Pipeline(
             [
-                ("preprocess", _preprocessor(features, scale_numeric=False)),
+                ("preprocess", ordinal),
                 (
                     "classifier",
-                    RandomForestClassifier(
-                        n_estimators=200,
-                        min_samples_leaf=5,
-                        class_weight="balanced_subsample",
-                        n_jobs=1,
+                    HistGradientBoostingClassifier(
+                        max_iter=200,
+                        min_samples_leaf=200,
+                        l2_regularization=1.0,
+                        early_stopping=False,
+                        categorical_features=[False] * len(numeric)
+                        + [True] * len(categorical),
                         random_state=RANDOM_STATE,
                     ),
                 ),
@@ -451,30 +507,21 @@ def _candidate_pipelines(features: pd.DataFrame) -> Mapping[str, Any]:
     }
 
 
-def _group_holdout_indices(
-    target: pd.Series, groups: pd.Series
-) -> tuple[np.ndarray, np.ndarray, int]:
-    """Find a deterministic group-disjoint split containing both outcome classes."""
+def _temporal_holdout_indices(
+    features: pd.DataFrame, target: pd.Series, cutoff: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Train on sessions before ``cutoff``; hold out every session on or after it."""
 
-    candidates: list[tuple[float, np.ndarray, np.ndarray, int]] = []
-    for offset in range(100):
-        seed = RANDOM_STATE + offset
-        splitter = GroupShuffleSplit(
-            n_splits=1, test_size=HOLDOUT_FRACTION, random_state=seed
-        )
-        train_index, test_index = next(splitter.split(target, target, groups))
-        if (
-            target.iloc[train_index].nunique() == 2
-            and target.iloc[test_index].nunique() == 2
-        ):
-            score = abs(len(test_index) / len(target) - HOLDOUT_FRACTION)
-            candidates.append((score, train_index, test_index, seed))
-    if not candidates:
-        raise ValueError(
-            "Could not make a group-disjoint split with both outcome classes"
-        )
-    _, train_index, test_index, seed = min(candidates, key=lambda value: value[0])
-    return train_index, test_index, seed
+    if DATE_COLUMN not in features:
+        raise ValueError(f"{DATE_COLUMN} is required for the temporal holdout")
+    dates = pd.to_datetime(features[DATE_COLUMN], errors="raise")
+    is_holdout = (dates >= pd.Timestamp(cutoff)).to_numpy()
+    train_index = np.flatnonzero(~is_holdout)
+    test_index = np.flatnonzero(is_holdout)
+    for label, index in (("training", train_index), ("holdout", test_index)):
+        if target.iloc[index].nunique() != 2:
+            raise ValueError(f"The {label} period must contain both outcome classes")
+    return train_index, test_index
 
 
 def _fit_rate_heuristic(feature: pd.Series, target: pd.Series) -> Mapping[str, float]:
@@ -565,6 +612,51 @@ def _calibration_bins(target: pd.Series, probability: np.ndarray) -> pd.DataFram
     )
     return pd.DataFrame(
         {"mean_predicted_probability": predicted, "observed_conversion_rate": observed}
+    )
+
+
+def _calibration_summary(target: pd.Series, probability: np.ndarray) -> Mapping[str, float]:
+    """Expected vs observed conversions and the logistic calibration slope.
+
+    The slope is fit on the holdout for diagnosis only; nothing is recalibrated.
+    A slope below one means scores are too extreme, above one too timid.
+    """
+    clipped = np.clip(probability, 1e-12, 1 - 1e-12)
+    logit = np.log(clipped / (1 - clipped)).reshape(-1, 1)
+    slope_model = LogisticRegression(
+        C=np.inf, solver="newton-cholesky", tol=1e-10, max_iter=1_000
+    ).fit(logit, target)
+    return {
+        "expected_conversions": float(probability.sum()),
+        "observed_conversions": float(target.sum()),
+        "observed_to_expected_ratio": float(target.sum() / probability.sum()),
+        "calibration_slope": float(slope_model.coef_[0][0]),
+    }
+
+
+def _permutation_importance(
+    model: Any, features: pd.DataFrame, target: pd.Series
+) -> pd.DataFrame:
+    """Drop in held-out PR-AUC when each raw feature is shuffled (10 repeats)."""
+    result = permutation_importance(
+        model,
+        features,
+        target,
+        scoring="average_precision",
+        n_repeats=10,
+        random_state=RANDOM_STATE,
+        n_jobs=1,
+    )
+    return (
+        pd.DataFrame(
+            {
+                "feature": features.columns,
+                "pr_auc_drop_mean": result.importances_mean,
+                "pr_auc_drop_std": result.importances_std,
+            }
+        )
+        .sort_values("pr_auc_drop_mean", ascending=False, kind="stable")
+        .reset_index(drop=True)
     )
 
 

@@ -122,12 +122,12 @@ def test_funnel_decision_summary_covers_full_window_on_every_page(
     assert first.json()["total"] > len(first.json()["items"])
     assert first.json()["decision_summary"] == second.json()["decision_summary"]
     assert first.json()["decision_summary"]["coverage"] == "full_filtered_window"
+    funnel = __import__("json").loads(
+        Path("data/derived/ga4_public_sample/findings_summary.json").read_text()
+    )["funnel"]
     assert first.json()["decision_summary"]["stages"] == {
-        "views": 333_683,
-        "engaged_sessions": 250_206,
-        "add_to_carts": 14_919,
-        "checkouts": 5_956,
-        "purchases": 2_847,
+        stage: funnel[stage]
+        for stage in ("views", "engaged_sessions", "add_to_carts", "checkouts", "purchases")
     }
     assert first.json()["decision_summary"]["channels"]
 
@@ -208,7 +208,7 @@ def test_model_contract_is_reviewed_evidence_without_model_object(client: APICli
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["selected_model"] == "logistic_regression"
+    assert payload["selected_model"] in {"logistic_regression", "gradient_boosting"}
     assert "model" not in payload
     assert_evidence(payload, "public_observed")
 
